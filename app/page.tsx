@@ -1,15 +1,140 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
+// 1. TOP DESTINATION SLIDER DATA
 const DESTINATIONS = [
   { id: 1, city: "Paris", image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80" },
   { id: 2, city: "Tokyo", image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1600&q=80" },
   { id: 3, city: "New York", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1600&q=80" }
 ];
 
+// 2. OUR NEW AIRPORT DATABASE
+const AIRPORTS = [
+  // India
+  { code: "DEL", city: "New Delhi", country: "India" },
+  { code: "BOM", city: "Mumbai", country: "India" },
+  { code: "BLR", city: "Bengaluru", country: "India" },
+  // Japan
+  { code: "HND", city: "Tokyo", country: "Japan" },
+  { code: "KIX", city: "Osaka", country: "Japan" },
+  { code: "CTS", city: "Sapporo", country: "Japan" },
+  // Philippines
+  { code: "MNL", city: "Manila", country: "Philippines" },
+  { code: "CEB", city: "Cebu", country: "Philippines" },
+  { code: "KLO", city: "Kalibo (Boracay)", country: "Philippines" },
+  // Malaysia
+  { code: "KUL", city: "Kuala Lumpur", country: "Malaysia" },
+  { code: "PEN", city: "Penang", country: "Malaysia" },
+  { code: "LGK", city: "Langkawi", country: "Malaysia" },
+  // Singapore
+  { code: "SIN", city: "Singapore", country: "Singapore" },
+  // Vietnam
+  { code: "HAN", city: "Hanoi", country: "Vietnam" },
+  { code: "SGN", city: "Ho Chi Minh City", country: "Vietnam" },
+  { code: "DAD", city: "Da Nang", country: "Vietnam" },
+  // Thailand
+  { code: "BKK", city: "Bangkok", country: "Thailand" },
+  { code: "HKT", city: "Phuket", country: "Thailand" },
+  { code: "CNX", city: "Chiang Mai", country: "Thailand" },
+  // South Korea
+  { code: "ICN", city: "Seoul", country: "South Korea" },
+  { code: "PUS", city: "Busan", country: "South Korea" },
+  { code: "CJU", city: "Jeju", country: "South Korea" },
+  // Taiwan
+  { code: "TPE", city: "Taipei", country: "Taiwan" },
+  { code: "KHH", city: "Kaohsiung", country: "Taiwan" },
+  // China
+  { code: "PEK", city: "Beijing", country: "China" },
+  { code: "PVG", city: "Shanghai", country: "China" },
+  { code: "CAN", city: "Guangzhou", country: "China" },
+  // Indonesia
+  { code: "CGK", city: "Jakarta", country: "Indonesia" },
+  { code: "DPS", city: "Denpasar (Bali)", country: "Indonesia" },
+  { code: "SUB", city: "Surabaya", country: "Indonesia" },
+];
+
+// 3. SMART AUTOCOMPLETE COMPONENT
+const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState(value ? `${value.city} (${value.code})` : "");
+  const wrapperRef = useRef(null);
+
+  // Filter airports based on what the user types (checks city, code, or country)
+  const filteredAirports = AIRPORTS.filter(
+    (airport) =>
+      airport.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      airport.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      airport.country.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Close dropdown if user clicks outside of it
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
+        setIsOpen(false);
+        // If they clicked away without selecting, reset the search term to the actual selected value
+        if (value) {
+          setSearchTerm(`${value.city} (${value.code})`);
+        } else {
+          setSearchTerm("");
+        }
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [value]);
+
+  return (
+    <div className="flex flex-col relative" ref={wrapperRef}>
+      <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">{label}</label>
+      <input
+        type="text"
+        placeholder={placeholder}
+        value={searchTerm}
+        onChange={(e) => {
+          setSearchTerm(e.target.value);
+          setIsOpen(true);
+          onChange(null); // Clear actual selection while typing new search
+        }}
+        onFocus={() => setIsOpen(true)}
+        className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full"
+      />
+      
+      {/* DROPDOWN MENU */}
+      {isOpen && (
+        <ul className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+          {filteredAirports.length > 0 ? (
+            filteredAirports.map((airport) => (
+              <li
+                key={airport.code}
+                onClick={() => {
+                  onChange(airport);
+                  setSearchTerm(`${airport.city} (${airport.code})`);
+                  setIsOpen(false);
+                }}
+                className="px-4 py-3 hover:bg-[#f5482b] hover:text-white cursor-pointer border-b border-gray-100 last:border-none transition-colors group"
+              >
+                <div className="font-bold text-black group-hover:text-white">{airport.city} ({airport.code})</div>
+                <div className="text-xs text-gray-500 group-hover:text-gray-200">{airport.country}</div>
+              </li>
+            ))
+          ) : (
+            <li className="px-4 py-3 text-gray-500 text-sm">No airports found.</li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+};
+
+// 4. MAIN PAGE COMPONENT
 export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [tripType, setTripType] = useState("return");
+  
+  // New state to hold our selected airports
+  const [fromAirport, setFromAirport] = useState(null);
+  const [toAirport, setToAirport] = useState(null);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -20,7 +145,7 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-      {/* NAVIGATION BAR - Now White with Black Text */}
+      {/* NAVIGATION BAR */}
       <nav className="bg-white text-black p-4 md:p-5 shadow-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto flex items-center gap-3 md:gap-4">
           <img src="/logo.png" alt="Insider Air Logo" className="h-8 md:h-10 w-auto" />
@@ -84,16 +209,23 @@ export default function Home() {
           </label>
         </div>
 
-        {/* Inputs Grid */}
+        {/* Inputs Grid - Now using our Smart Autocomplete */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-          <div className="flex flex-col">
-            <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">From</label>
-            <input type="text" placeholder="Origin Airport" className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full" />
-          </div>
-          <div className="flex flex-col">
-            <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">To</label>
-            <input type="text" placeholder="Destination Airport" className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full" />
-          </div>
+          
+          <AirportAutocomplete 
+            label="From" 
+            placeholder="Type city or airport code" 
+            value={fromAirport} 
+            onChange={setFromAirport} 
+          />
+
+          <AirportAutocomplete 
+            label="To" 
+            placeholder="Type city or airport code" 
+            value={toAirport} 
+            onChange={setToAirport} 
+          />
+
           <div className="flex flex-col">
             <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">Departure</label>
             <input type="date" className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full" />
