@@ -59,7 +59,7 @@ const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
   const [searchTerm, setSearchTerm] = useState(value ? `${value.city} (${value.code})` : "");
   const wrapperRef = useRef(null);
 
-  // Filter airports based on what the user types (checks city, code, or country)
+  // Filter airports based on what the user types
   const filteredAirports = AIRPORTS.filter(
     (airport) =>
       airport.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -93,7 +93,7 @@ const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
         onChange={(e) => {
           setSearchTerm(e.target.value);
           setIsOpen(true);
-          onChange(null); // Clear actual selection while typing new search
+          onChange(null);
         }}
         onFocus={() => setIsOpen(true)}
         className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full"
