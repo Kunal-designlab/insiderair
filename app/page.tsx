@@ -72,7 +72,6 @@ const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
-        // If they clicked away without selecting, reset the search term to the actual selected value
         if (value) {
           setSearchTerm(`${value.city} (${value.code})`);
         } else {
@@ -132,7 +131,6 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [tripType, setTripType] = useState("return");
   
-  // New state to hold our selected airports
   const [fromAirport, setFromAirport] = useState(null);
   const [toAirport, setToAirport] = useState(null);
 
@@ -209,19 +207,19 @@ export default function Home() {
           </label>
         </div>
 
-        {/* Inputs Grid - Now using our Smart Autocomplete */}
+        {/* Inputs Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           
           <AirportAutocomplete 
             label="From" 
-            placeholder="Type city or airport code" 
+            placeholder="Type city or code" 
             value={fromAirport} 
             onChange={setFromAirport} 
           />
 
           <AirportAutocomplete 
             label="To" 
-            placeholder="Type city or airport code" 
+            placeholder="Type city or code" 
             value={toAirport} 
             onChange={setToAirport} 
           />
