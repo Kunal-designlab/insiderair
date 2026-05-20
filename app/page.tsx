@@ -24,8 +24,13 @@ export default function Home() {
     <main className="min-h-screen bg-gray-100">
       {/* NAVIGATION BAR */}
       <nav className="bg-blue-900 text-white p-5 shadow-lg">
-        <div className="max-w-6xl mx-auto font-bold text-2xl tracking-wider">
-          INSIDER AIRLINES
+        <div className="max-w-6xl mx-auto flex items-center gap-4">
+          {/* LOGO IMAGE */}
+          <img src="/logo.png" alt="Insider Air Logo" className="h-10 w-auto" />
+          
+          <div className="font-bold text-2xl tracking-wider">
+            Insider Air
+          </div>
         </div>
       </nav>
 
