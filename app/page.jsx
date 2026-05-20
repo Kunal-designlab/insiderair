@@ -240,7 +240,7 @@ export default function Home() {
 
         {/* Search Button */}
         <div className="mt-6 md:mt-8 flex justify-end">
-          <button className="w-full md:w-auto bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-lg text-lg transition-colors shadow-lg active:scale-95">
+          <button onClick={() => window.location.href = '/results'} className="w-full md:w-auto bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-lg text-lg transition-colors shadow-lg active:scale-95">
             Search Flights
           </button>
         </div>
