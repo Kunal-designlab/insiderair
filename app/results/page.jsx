@@ -15,15 +15,6 @@ export default function Results() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-      {/* NAVIGATION BAR */}
-      <nav className="bg-white text-black p-4 md:p-5 shadow-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3 md:gap-4 cursor-pointer">
-            <img src="/logo.png" alt="Insider Air Logo" className="h-8 md:h-10 w-auto" />
-            <div className="font-black text-xl md:text-2xl tracking-wider">INSIDER AIR</div>
-          </Link>
-        </div>
-      </nav>
 
       <div className="max-w-6xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-6">
         

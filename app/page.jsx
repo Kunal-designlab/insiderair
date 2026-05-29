@@ -143,15 +143,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-      {/* NAVIGATION BAR */}
-      <nav className="bg-white text-black p-4 md:p-5 shadow-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto flex items-center gap-3 md:gap-4">
-          <img src="/logo.png" alt="Insider Air Logo" className="h-8 md:h-10 w-auto" />
-          <div className="font-black text-xl md:text-2xl tracking-wider">
-            INSIDER AIR
-          </div>
-        </div>
-      </nav>
 
       {/* HERO SLIDER */}
       <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden">
