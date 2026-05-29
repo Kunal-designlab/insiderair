@@ -8,66 +8,55 @@ const DESTINATIONS = [
   { id: 3, city: "New York", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1600&q=80" }
 ];
 
-// 2. OUR NEW AIRPORT DATABASE
+// 2. OUR AIRPORT DATABASE
 const AIRPORTS = [
-  // India
-  { code: "DEL", city: "New Delhi", country: "India" },
-  { code: "BOM", city: "Mumbai", country: "India" },
-  { code: "BLR", city: "Bengaluru", country: "India" },
-  // Japan
   { code: "HND", city: "Tokyo", country: "Japan" },
   { code: "KIX", city: "Osaka", country: "Japan" },
-  { code: "CTS", city: "Sapporo", country: "Japan" },
-  // Philippines
   { code: "MNL", city: "Manila", country: "Philippines" },
-  { code: "CEB", city: "Cebu", country: "Philippines" },
-  { code: "KLO", city: "Kalibo (Boracay)", country: "Philippines" },
+  { code: "CEB", city: "Cebu", country: "Philippines" }, // NEW
   // Malaysia
   { code: "KUL", city: "Kuala Lumpur", country: "Malaysia" },
-  { code: "PEN", city: "Penang", country: "Malaysia" },
-  { code: "LGK", city: "Langkawi", country: "Malaysia" },
+  { code: "PEN", city: "Penang", country: "Malaysia" }, // NEW
   // Singapore
   { code: "SIN", city: "Singapore", country: "Singapore" },
   // Vietnam
   { code: "HAN", city: "Hanoi", country: "Vietnam" },
-  { code: "SGN", city: "Ho Chi Minh City", country: "Vietnam" },
-  { code: "DAD", city: "Da Nang", country: "Vietnam" },
+  { code: "SGN", city: "Ho Chi Minh City", country: "Vietnam" }, // NEW
   // Thailand
   { code: "BKK", city: "Bangkok", country: "Thailand" },
-  { code: "HKT", city: "Phuket", country: "Thailand" },
-  { code: "CNX", city: "Chiang Mai", country: "Thailand" },
+  { code: "CNX", city: "Chiang Mai", country: "Thailand" }, // NEW
   // South Korea
   { code: "ICN", city: "Seoul", country: "South Korea" },
-  { code: "PUS", city: "Busan", country: "South Korea" },
-  { code: "CJU", city: "Jeju", country: "South Korea" },
+  { code: "PUS", city: "Busan", country: "South Korea" }, // NEW
   // Taiwan
   { code: "TPE", city: "Taipei", country: "Taiwan" },
-  { code: "KHH", city: "Kaohsiung", country: "Taiwan" },
   // China
   { code: "PEK", city: "Beijing", country: "China" },
-  { code: "PVG", city: "Shanghai", country: "China" },
-  { code: "CAN", city: "Guangzhou", country: "China" },
   // Indonesia
   { code: "CGK", city: "Jakarta", country: "Indonesia" },
   { code: "DPS", city: "Denpasar (Bali)", country: "Indonesia" },
-  { code: "SUB", city: "Surabaya", country: "Indonesia" },
+  // Australia (NEW)
+  { code: "SYD", city: "Sydney", country: "Australia" },
+  { code: "MEL", city: "Melbourne", country: "Australia" },
+  { code: "DEL", city: "New Delhi", country: "India" },
+  { code: "BOM", city: "Mumbai", country: "India" },
 ];
 
-// 3. SMART AUTOCOMPLETE COMPONENT
-const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
+// 3. SMART AUTOCOMPLETE (Now with Exclude Logic!)
+const AirportAutocomplete = ({ label, placeholder, value, onChange, excludeCode }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value ? `${value.city} (${value.code})` : "");
   const wrapperRef = useRef(null);
 
-  // Filter airports based on what the user types
+  // Filter airports, hiding the one that is currently excluded
   const filteredAirports = AIRPORTS.filter(
     (airport) =>
-      airport.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      airport.code !== excludeCode && // THIS PREVENTS DUPLICATE ORIGIN/DESTINATION
+      (airport.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
       airport.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      airport.country.toLowerCase().includes(searchTerm.toLowerCase())
+      airport.country.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Close dropdown if user clicks outside of it
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
@@ -99,7 +88,6 @@ const AirportAutocomplete = ({ label, placeholder, value, onChange }) => {
         className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full"
       />
       
-      {/* DROPDOWN MENU */}
       {isOpen && (
         <ul className="absolute z-50 top-full mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-xl max-h-60 overflow-y-auto">
           {filteredAirports.length > 0 ? (
@@ -131,9 +119,21 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [tripType, setTripType] = useState("return");
   
+  // Search Form State
   const [fromAirport, setFromAirport] = useState(null);
   const [toAirport, setToAirport] = useState(null);
+  const [departureDate, setDepartureDate] = useState("");
+  const [returnDate, setReturnDate] = useState("");
 
+  // Calculate Tomorrow's Date for the Minimum Departure Date
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const yyyy = tomorrow.getFullYear();
+  const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const dd = String(tomorrow.getDate()).padStart(2, '0');
+  const tomorrowStr = `${yyyy}-${mm}-${dd}`;
+
+  // Image Slider Logic
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % DESTINATIONS.length);
@@ -143,7 +143,6 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-
       {/* HERO SLIDER */}
       <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden">
         {DESTINATIONS.map((dest, index) => (
@@ -169,7 +168,7 @@ export default function Home() {
       </div>
 
       {/* SEARCH FLIGHT FORM OVERLAY */}
-      <div className="max-w-5xl mx-auto -mt-10 md:-mt-20 relative z-10 bg-white rounded-t-3xl md:rounded-xl shadow-2xl p-5 md:p-8 mx-0 md:mx-4 border border-gray-100">
+      <div className="max-w-5xl mx-auto -mt-10 md:-mt-20 relative z-10 bg-white rounded-t-3xl md:rounded-xl shadow-2xl p-5 md:p-8 md:mx-4 mx-0 border border-gray-100">
         <h2 className="text-2xl md:text-3xl font-black text-black mb-6 md:mb-8">Where are we flying?</h2>
         
         {/* Trip Type Selector */}
@@ -191,7 +190,10 @@ export default function Home() {
               name="tripType" 
               value="one-way" 
               checked={tripType === "one-way"}
-              onChange={() => setTripType("one-way")}
+              onChange={() => {
+                setTripType("one-way");
+                setReturnDate(""); // Clear return date if they switch to one-way
+              }}
               className="w-5 h-5 accent-[#f5482b]"
             />
             <span className="font-bold text-black text-base md:text-lg">One Way</span>
@@ -206,6 +208,7 @@ export default function Home() {
             placeholder="Type city or code" 
             value={fromAirport} 
             onChange={setFromAirport} 
+            excludeCode={toAirport?.code} // Don't show whatever is in 'To'
           />
 
           <AirportAutocomplete 
@@ -213,16 +216,33 @@ export default function Home() {
             placeholder="Type city or code" 
             value={toAirport} 
             onChange={setToAirport} 
+            excludeCode={fromAirport?.code} // Don't show whatever is in 'From'
           />
 
           <div className="flex flex-col">
             <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">Departure</label>
-            <input type="date" className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full" />
+            <input 
+              type="date" 
+              min={tomorrowStr} // Cannot be before tomorrow
+              value={departureDate}
+              onChange={(e) => {
+                setDepartureDate(e.target.value);
+                // If they change departure to a date AFTER their selected return date, reset the return date
+                if (returnDate && e.target.value > returnDate) {
+                  setReturnDate(""); 
+                }
+              }}
+              className="border-2 border-gray-200 p-3 md:p-4 rounded-lg focus:outline-none focus:border-[#f5482b] transition-colors text-black font-medium w-full" 
+            />
           </div>
+          
           <div className="flex flex-col">
             <label className="text-xs md:text-sm font-bold text-gray-500 mb-1 md:mb-2 uppercase">Return</label>
             <input 
               type="date" 
+              min={departureDate || tomorrowStr} // Cannot be before departure date
+              value={returnDate}
+              onChange={(e) => setReturnDate(e.target.value)}
               disabled={tripType === "one-way"} 
               className={`border-2 border-gray-200 p-3 md:p-4 rounded-lg transition-colors text-black font-medium w-full ${tripType === "one-way" ? "bg-gray-100 cursor-not-allowed opacity-50" : "focus:outline-none focus:border-[#f5482b]"}`} 
             />
@@ -231,7 +251,17 @@ export default function Home() {
 
         {/* Search Button */}
         <div className="mt-6 md:mt-8 flex justify-end">
-          <button onClick={() => window.location.href = '/results'} className="w-full md:w-auto bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-lg text-lg transition-colors shadow-lg active:scale-95">
+          <button 
+            onClick={() => {
+              if(!fromAirport || !toAirport || !departureDate || (tripType === "return" && !returnDate)) {
+                alert("Please fill out all search fields before continuing.");
+                return;
+              }
+              // Here is where we'll pass the data to the next page!
+              window.location.href = '/results';
+            }}
+            className="w-full md:w-auto bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-lg text-lg transition-colors shadow-lg active:scale-95"
+          >
             Search Flights
           </button>
         </div>
