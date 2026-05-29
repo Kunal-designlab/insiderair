@@ -257,8 +257,18 @@ export default function Home() {
                 alert("Please fill out all search fields before continuing.");
                 return;
               }
-              // Here is where we'll pass the data to the next page!
-              window.location.href = '/results';
+              
+              // 1. Bundle up the search data into a URL Query String
+              const queryParams = new URLSearchParams({
+                type: tripType,
+                from: fromAirport.code,
+                to: toAirport.code,
+                dep: departureDate,
+                ret: tripType === "return" ? returnDate : "",
+              }).toString();
+              
+              // 2. Shoot the user over to the results page with the data attached!
+              window.location.href = `/results?${queryParams}`;
             }}
             className="w-full md:w-auto bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-lg text-lg transition-colors shadow-lg active:scale-95"
           >
