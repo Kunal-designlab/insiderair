@@ -3,9 +3,9 @@ import { useState, useEffect, useRef } from "react";
 
 // 1. TOP DESTINATION SLIDER DATA
 const DESTINATIONS = [
-  { id: 1, city: "Paris", image: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1600&q=80" },
-  { id: 2, city: "Tokyo", image: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1600&q=80" },
-  { id: 3, city: "New York", image: "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?auto=format&fit=crop&w=1600&q=80" }
+  { id: 1, city: "Singapore", image: "/destinations/singapore.png" },
+  { id: 2, city: "Tokyo", image: "/destinations/tokyo.png" },
+  { id: 3, city: "Ho chi Minh", image: "/destinations/hochiminh.png" }
 ];
 
 // 2. OUR AIRPORT DATABASE
@@ -143,23 +143,28 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-      {/* HERO SLIDER */}
-      <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden">
+  {/* HERO SLIDER */}
+      <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden bg-gray-900">
         {DESTINATIONS.map((dest, index) => (
           <div
             key={dest.id}
             className={`absolute inset-0 transition-opacity duration-1000 ${
               index === currentSlide ? "opacity-100" : "opacity-0"
             }`}
-            style={{
-              backgroundImage: `url(${dest.image})`,
-              backgroundSize: "cover",
-              backgroundPosition: "center"
-            }}
           >
-            <div className="absolute inset-0 bg-black bg-opacity-50" />
+            {/* 1. The Physical Image */}
+            <img 
+              src={dest.image} 
+              alt={dest.city} 
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            
+            {/* 2. The Dark Overlay */}
+            <div className="absolute inset-0 bg-black bg-opacity-40" />
+            
+            {/* 3. The City Text */}
             <div className="absolute inset-0 flex items-center justify-center px-4">
-              <h1 className="text-white text-4xl md:text-6xl lg:text-8xl font-black tracking-widest uppercase drop-shadow-2xl text-center">
+              <h1 className="text-white text-4xl md:text-6xl lg:text-8xl font-black tracking-widest uppercase drop-shadow-2xl text-center z-10">
                 {dest.city}
               </h1>
             </div>
