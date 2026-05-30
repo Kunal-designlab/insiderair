@@ -94,7 +94,7 @@ const CompactAirportAutocomplete = ({ label, value, onChange, excludeCode }) => 
   );
 };
 
-// 3. PASSENGER DROPDOWN (For Top Bar)
+// 3. PASSENGER DROPDOWN
 const PassengerDropdown = ({ adults, setAdults, childrenCount, setChildrenCount, infants, setInfants, disabled }) => {
   const [isOpen, setIsOpen] = useState(false);
   const wrapperRef = useRef(null);
@@ -164,15 +164,9 @@ const PassengerDropdown = ({ adults, setAdults, childrenCount, setChildrenCount,
 // 4. DUMMY DATA 
 const DUMMY_FLIGHTS = [
   { id: 1, airline: "Insider Air", flightNo: "IA-101", depTime: "04:30", arrTime: "08:30", price: "$250", type: "Direct", meals: true, baggage: "7kg Cabin, 20kg Check-in" },
-  { 
-    id: 2, airline: "Partner Air", flightNo: "PA-205", depTime: "10:15", arrTime: "19:00", price: "$180", type: "Hop Flight", meals: false, baggage: "7kg Cabin", layover: "2h 00m", layoverCity: "Bangkok (BKK)",
-    segments: [{ flightNo: "PA-205", depTime: "10:15", arrTime: "15:00" }, { flightNo: "PA-206", depTime: "17:00", arrTime: "19:00" }]
-  },
+  { id: 2, airline: "Partner Air", flightNo: "PA-205", depTime: "10:15", arrTime: "19:00", price: "$180", type: "Hop Flight", meals: false, baggage: "7kg Cabin", layover: "2h 00m", layoverCity: "Bangkok (BKK)", segments: [{ flightNo: "PA-205", depTime: "10:15", arrTime: "15:00" }, { flightNo: "PA-206", depTime: "17:00", arrTime: "19:00" }] },
   { id: 3, airline: "Insider Air", flightNo: "IA-992", depTime: "14:30", arrTime: "19:15", price: "$310", type: "Direct", meals: true, baggage: "7kg Cabin, 30kg Check-in" },
-  { 
-    id: 4, airline: "Cloud Nine", flightNo: "CN-404", depTime: "21:45", arrTime: "01:20", price: "$195", type: "Hop Flight", meals: true, baggage: "7kg Cabin", layover: "1h 15m", layoverCity: "Kuala Lumpur (KUL)",
-    segments: [{ flightNo: "CN-404", depTime: "21:45", arrTime: "23:15" }, { flightNo: "CN-405", depTime: "00:30", arrTime: "01:20" }]
-  },
+  { id: 4, airline: "Cloud Nine", flightNo: "CN-404", depTime: "21:45", arrTime: "01:20", price: "$195", type: "Hop Flight", meals: true, baggage: "7kg Cabin", layover: "1h 15m", layoverCity: "Kuala Lumpur (KUL)", segments: [{ flightNo: "CN-404", depTime: "21:45", arrTime: "23:15" }, { flightNo: "CN-405", depTime: "00:30", arrTime: "01:20" }] },
 ];
 
 const TIME_SLOTS = ["00:00 - 06:00", "06:01 - 12:00", "12:01 - 18:00", "18:01 - 23:59"];
@@ -283,14 +277,10 @@ const FlightCard = ({ flight, isExpanded, onExpand, originCode, destCode, contin
 function ResultsContent() {
   const searchParams = useSearchParams();
 
-  // --- NEW: GATEKEEPER STATE ---
   const [passengersConfirmed, setPassengersConfirmed] = useState(false);
-
-  // Selection States
   const [expandedOutbound, setExpandedOutbound] = useState(null);
   const [expandedReturn, setExpandedReturn] = useState(null);
 
-  // Search Engine State
   const [tripType, setTripType] = useState("return");
   const [fromAirport, setFromAirport] = useState(null);
   const [toAirport, setToAirport] = useState(null);
@@ -300,10 +290,7 @@ function ResultsContent() {
   const [adults, setAdults] = useState(1);
   const [childrenCount, setChildrenCount] = useState(0);
   const [infants, setInfants] = useState(0);
-  const totalPassengers = adults + childrenCount + infants;
-  const maxReached = totalPassengers >= 20;
 
-  // Filter States
   const [stopsFilter, setStopsFilter] = useState(STOP_TYPES);
   const [timeFilter, setTimeFilter] = useState(TIME_SLOTS);
 
@@ -317,8 +304,35 @@ function ResultsContent() {
     if (type) setTripType(type);
     if (dep) setDepartureDate(dep);
     if (ret) setReturnDate(ret);
-    if (fromCode) { const foundFrom = AIRPORTS.find(a => a.code === fromCode); if (foundFrom) setFromAirport(foundFrom); }
-    if (toCode) { const foundTo = AIRPORTS.find(a => a.code === toCode); if (foundTo) setToAirport(foundTo); }
+    
+    // Setup States & DataLayer Push
+    const foundFrom = AIRPORTS.find(a => a.code === fromCode);
+    const foundTo = AIRPORTS.find(a => a.code === toCode);
+    
+    if (foundFrom) setFromAirport(foundFrom);
+    if (foundTo) setToAirport(foundTo);
+
+    // --- DATALAYER: Category Page View Event ---
+    if (foundFrom && foundTo) {
+      const flightType = type === "return" ? "RT" : "OW";
+      const routeString = flightType === "RT" 
+        ? `${foundFrom.code}-${foundTo.code}-${foundTo.code}-${foundFrom.code}` 
+        : `${foundFrom.code}-${foundTo.code}`;
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "category_page_view",
+        destination_iata: foundTo.code,
+        origin_iata: foundFrom.code,
+        product_id: routeString,
+        destination_city: foundTo.city,
+        taxonomy: [routeString],
+        origin_city: foundFrom.city,
+        name: routeString,
+        flight_type: flightType
+      });
+      console.log("Fired GTM Category View:", routeString);
+    }
   }, [searchParams]);
 
   const tomorrow = new Date();
@@ -343,20 +357,67 @@ function ResultsContent() {
     return matchesStops && matchesTime;
   });
 
+  // --- NEW: DATALAYER PRODUCT PAGE VIEW EVENT ON SELECTION ---
+  const handleExpandFlight = (flight, isReturnLeg) => {
+    const isCurrentlyExpanded = isReturnLeg ? (expandedReturn === flight.id) : (expandedOutbound === flight.id);
+
+    // If we are opening/selecting the flight (not closing it)
+    if (!isCurrentlyExpanded) {
+      const originObj = isReturnLeg ? toAirport : fromAirport;
+      const destObj = isReturnLeg ? fromAirport : toAirport;
+      const flightDateStr = isReturnLeg ? returnDate : departureDate;
+      const flightType = tripType === "return" ? "RT" : "OW";
+
+      let humanDate = "";
+      let rfcDate = "";
+
+      if (flightDateStr) {
+        // Parse the YYYY-MM-DD string reliably
+        const [y, m, d] = flightDateStr.split('-');
+        const dateObj = new Date(Date.UTC(y, m - 1, d));
+        humanDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+
+        // Generate the strict RFC 3339 format using the specific flight's departure time (e.g., 2026-06-15T14:30:00Z)
+        const depTimeStr = flight.depTime || "00:00";
+        rfcDate = `${flightDateStr}T${depTimeStr}:00Z`;
+      }
+
+      // The specific route string for this leg (e.g. "DEL-SIN")
+      const legRouteString = `${originObj.code}-${destObj.code}`;
+
+      // Push to DataLayer
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "product_page_view",
+        destination_iata: destObj.code,
+        origin_iata: originObj.code,
+        product_id: legRouteString,
+        destination_city: destObj.city,
+        taxonomy: [legRouteString],
+        origin_city: originObj.city,
+        name: legRouteString,
+        flight_type: flightType,
+        departure_date: humanDate,
+        departure_date_rfc: rfcDate
+      });
+
+      console.log("Fired GTM Product Page View:", legRouteString, "| RFC Date:", rfcDate);
+    }
+
+    // Toggle the UI expansion
+    if (isReturnLeg) {
+      setExpandedReturn(isCurrentlyExpanded ? null : flight.id);
+    } else {
+      setExpandedOutbound(isCurrentlyExpanded ? null : flight.id);
+    }
+  };
+
   const handleCheckout = () => {
     if (tripType === "return" && (!expandedOutbound || !expandedReturn)) {
       alert("Almost there! Please make sure you have selected BOTH an Outbound and a Return flight.");
       return;
     }
-    
-    // Bundle up the passenger counts into the URL
-    const queryParams = new URLSearchParams({
-      adults: adults,
-      children: childrenCount,
-      infants: infants
-    }).toString();
-    
-    // Send them to the new checkout page!
+    const queryParams = new URLSearchParams({ adults, children: childrenCount, infants }).toString();
     window.location.href = `/passenger-details?${queryParams}`;
   };
 
@@ -410,62 +471,26 @@ function ResultsContent() {
       {/* CONDITIONAL RENDER: GATEKEEPER VS FLIGHTS */}
       {!passengersConfirmed ? (
         
-        /* GATEKEEPER UI - Locks flights until confirmed */
         <div className="max-w-2xl mx-auto mt-12 md:mt-20 px-4">
           <div className="bg-white p-8 md:p-12 rounded-2xl shadow-xl border border-gray-100 text-center">
             <h2 className="text-3xl md:text-4xl font-black text-black mb-2">Who is flying?</h2>
             <p className="text-gray-500 font-bold text-sm uppercase tracking-wide mb-10">Confirm passenger count to unlock flights</p>
             
             <div className="flex flex-col gap-8 text-left mb-10 max-w-sm mx-auto">
-              
-              {/* Adults Selector */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-100">
-                <div>
-                  <div className="font-black text-black text-lg">Adults</div>
-                  <div className="text-sm text-gray-400 font-bold">12+ years</div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button disabled={adults <= 1} onClick={() => setAdults(adults - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button>
-                  <span className="w-6 text-center font-black text-2xl text-black">{adults}</span>
-                  <button disabled={maxReached} onClick={() => setAdults(adults + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button>
-                </div>
+                <div><div className="font-black text-black text-lg">Adults</div><div className="text-sm text-gray-400 font-bold">12+ years</div></div>
+                <div className="flex items-center gap-4"><button disabled={adults <= 1} onClick={() => setAdults(adults - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button><span className="w-6 text-center font-black text-2xl text-black">{adults}</span><button disabled={adults + childrenCount + infants >= 20} onClick={() => setAdults(adults + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button></div>
               </div>
-
-              {/* Children Selector */}
               <div className="flex items-center justify-between pb-6 border-b border-gray-100">
-                <div>
-                  <div className="font-black text-black text-lg">Children</div>
-                  <div className="text-sm text-gray-400 font-bold">2-11 years</div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button disabled={childrenCount <= 0} onClick={() => setChildrenCount(childrenCount - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button>
-                  <span className="w-6 text-center font-black text-2xl text-black">{childrenCount}</span>
-                  <button disabled={maxReached} onClick={() => setChildrenCount(childrenCount + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button>
-                </div>
+                <div><div className="font-black text-black text-lg">Children</div><div className="text-sm text-gray-400 font-bold">2-11 years</div></div>
+                <div className="flex items-center gap-4"><button disabled={childrenCount <= 0} onClick={() => setChildrenCount(childrenCount - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button><span className="w-6 text-center font-black text-2xl text-black">{childrenCount}</span><button disabled={adults + childrenCount + infants >= 20} onClick={() => setChildrenCount(childrenCount + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button></div>
               </div>
-
-              {/* Infants Selector */}
               <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-black text-black text-lg">Infants</div>
-                  <div className="text-sm text-gray-400 font-bold">Under 2 years</div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <button disabled={infants <= 0} onClick={() => setInfants(infants - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button>
-                  <span className="w-6 text-center font-black text-2xl text-black">{infants}</span>
-                  <button disabled={maxReached || infants >= adults} onClick={() => setInfants(infants + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button>
-                </div>
+                <div><div className="font-black text-black text-lg">Infants</div><div className="text-sm text-gray-400 font-bold">Under 2 years</div></div>
+                <div className="flex items-center gap-4"><button disabled={infants <= 0} onClick={() => setInfants(infants - 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">-</button><span className="w-6 text-center font-black text-2xl text-black">{infants}</span><button disabled={adults + childrenCount + infants >= 20 || infants >= adults} onClick={() => setInfants(infants + 1)} className="w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-black font-black text-xl disabled:opacity-30 hover:border-[#f5482b] hover:text-[#f5482b] transition-colors">+</button></div>
               </div>
-
-              {infants >= adults && !maxReached && <div className="text-sm text-[#f5482b] font-bold text-center">Maximum 1 infant per adult flyer.</div>}
-              {maxReached && <div className="text-sm text-[#f5482b] font-bold text-center">Maximum group size is 20 flyers.</div>}
-
             </div>
-
-            <button 
-              onClick={() => setPassengersConfirmed(true)} 
-              className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-xl text-lg transition-colors shadow-lg active:scale-95"
-            >
+            <button onClick={() => setPassengersConfirmed(true)} className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 px-10 rounded-xl text-lg transition-colors shadow-lg active:scale-95">
               Unlock Flights
             </button>
           </div>
@@ -473,10 +498,8 @@ function ResultsContent() {
 
       ) : (
 
-        /* MAIN CONTENT - Visible after confirming passengers */
         <div className="max-w-6xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-6 animate-fade-in">
           
-          {/* LEFT SIDEBAR: ACTIVE FILTERS */}
           <aside className="w-full md:w-1/4 bg-white p-5 rounded-xl shadow-md border border-gray-100 h-fit sticky top-[250px]">
             <h3 className="font-black text-lg mb-4 text-black border-b border-gray-200 pb-2">Filters</h3>
             <div className="mb-6">
@@ -499,7 +522,6 @@ function ResultsContent() {
             </div>
           </aside>
 
-          {/* FLIGHT RESULTS */}
           <section className="w-full md:w-3/4 flex flex-col gap-4">
             
             <div className="mb-2">
@@ -513,7 +535,7 @@ function ResultsContent() {
               filteredFlights.map((flight) => (
                 <FlightCard 
                   key={`out-${flight.id}`} flight={flight} isExpanded={expandedOutbound === flight.id}
-                  onExpand={() => setExpandedOutbound(expandedOutbound === flight.id ? null : flight.id)}
+                  onExpand={() => handleExpandFlight(flight, false)}
                   originCode={originCode} destCode={destCode} continueText={getContinueText(false)} onContinue={handleCheckout}
                 />
               ))
@@ -533,7 +555,7 @@ function ResultsContent() {
                   filteredFlights.map((flight) => (
                     <FlightCard 
                       key={`ret-${flight.id}`} flight={flight} isExpanded={expandedReturn === flight.id}
-                      onExpand={() => setExpandedReturn(expandedReturn === flight.id ? null : flight.id)}
+                      onExpand={() => handleExpandFlight(flight, true)}
                       originCode={destCode} destCode={originCode} continueText={getContinueText(true)} onContinue={handleCheckout}
                     />
                   ))
