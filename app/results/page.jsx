@@ -319,6 +319,16 @@ function ResultsContent() {
         ? `${foundFrom.code}-${foundTo.code}-${foundTo.code}-${foundFrom.code}` 
         : `${foundFrom.code}-${foundTo.code}`;
 
+      // Create human readable and RFC dates from the URL 'dep' param
+      let humanDate = "";
+      let rfcDate = "";
+      if (dep) {
+        const [y, m, d] = dep.split('-');
+        const dateObj = new Date(Date.UTC(y, m - 1, d));
+        humanDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        rfcDate = `${dep}T00:00:00Z`; // Defaulting to midnight for the general search
+      }
+
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "category_page_view",
@@ -329,7 +339,11 @@ function ResultsContent() {
         taxonomy: [routeString],
         origin_city: foundFrom.city,
         name: routeString,
-        flight_type: flightType
+        flight_type: flightType,
+        
+        // ADD THESE TWO LINES:
+        departure_date: humanDate,
+        departure_date_rfc: rfcDate
       });
       console.log("Fired GTM Category View:", routeString);
     }
