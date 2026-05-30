@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { useState, useEffect, useRef } from "react";
 
 // 1. TOP DESTINATION SLIDER DATA
@@ -146,29 +147,29 @@ export default function Home() {
   {/* HERO SLIDER */}
       <div className="relative h-[50vh] md:h-[60vh] w-full overflow-hidden bg-gray-900">
         {DESTINATIONS.map((dest, index) => (
-          <div
-            key={dest.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              index === currentSlide ? "opacity-100" : "opacity-0"
-            }`}
-          >
-            {/* 1. The Physical Image */}
-            <img 
-              src={dest.image} 
-              alt={dest.city} 
-              className="absolute inset-0 w-full h-full object-cover"
-            />
-            
-            {/* 2. The Dark Overlay */}
-            <div className="absolute inset-0 bg-black bg-opacity-40" />
-            
-            {/* 3. The City Text */}
-            <div className="absolute inset-0 flex items-center justify-center px-4">
-              <h1 className="text-white text-4xl md:text-6xl lg:text-8xl font-black tracking-widest uppercase drop-shadow-2xl text-center z-10">
-                {dest.city}
-              </h1>
+          // Only render the slide if it is the currently active one
+          index === currentSlide && (
+            <div key={dest.id} className="absolute inset-0">
+              
+              {/* 1. The Direct HTML Image */}
+              <img 
+                src={dest.image} 
+                alt={dest.city} 
+                className="w-full h-full object-cover object-center"
+              />
+              
+              {/* 2. The Dark Overlay (Using Tailwind's modern opacity syntax) */}
+              <div className="absolute inset-0 bg-black/40" />
+              
+              {/* 3. The City Text */}
+              <div className="absolute inset-0 flex items-center justify-center px-4">
+                <h1 className="text-white text-4xl md:text-6xl lg:text-8xl font-black tracking-widest uppercase drop-shadow-2xl text-center">
+                  {dest.city}
+                </h1>
+              </div>
+              
             </div>
-          </div>
+          )
         ))}
       </div>
 

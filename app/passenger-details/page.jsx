@@ -54,7 +54,7 @@ function CheckoutContent() {
 
     console.log("Verified Passenger Data:", passengers);
     alert("Passenger Details saved! Proceeding to Add-ons...");
-    window.location.href = `/add-ons?${searchParams.toString()}`; 
+    window.location.href = `/add-ons/meals?${searchParams.toString()}`; 
   };
 
   return (
