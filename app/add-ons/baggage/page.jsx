@@ -2,23 +2,19 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-// --- PRICING LOGIC ---
-const AIRPORT_RATE_PER_KG = 10; 
-const FLEXI_RATE_UP_TO_12 = 8; // 20% discount from $10
-const FLEXI_RATE_ABOVE_12 = 6; // Lower straight amount for 13-30kg
-
-const FIXED_PACKAGES = [
-  { id: "pkg-4", weight: 4, price: 30, label: "4 kg Light Pack" },
-  { id: "pkg-7", weight: 7, price: 50, label: "7 kg Medium Pack" },
-  { id: "pkg-10", weight: 10, price: 70, label: "10 kg Heavy Pack" },
+// --- BAGGAGE DATABASE ---
+const BAGGAGE_OPTIONS = [
+  { id: "bag-4", name: "4 kg Light Pack", desc: "1 Small personal item (Under seat)", price: 0, icon: "🎒" },
+  { id: "bag-7", name: "7 kg Medium Pack", desc: "1 Cabin bag + 1 Personal item", price: 25, icon: "🧳" },
+  { id: "bag-20", name: "20 kg Flexi Pass", desc: "1 Checked bag + Cabin + Personal", price: 60, icon: "⚖️" }
 ];
 
 function BaggageContent() {
   const searchParams = useSearchParams();
   const [passengers, setPassengers] = useState([]);
   
-  // Cart state storing baggage data per passenger ID
-  const [baggageCart, setBaggageCart] = useState({});
+  // Stores the selected bag for each passenger: { "flyer-1": { ...bagData } }
+  const [baggageSelections, setBaggageSelections] = useState({});
 
   useEffect(() => {
     const adults = parseInt(searchParams.get("adults")) || 1;
@@ -26,50 +22,73 @@ function BaggageContent() {
     const flyerCount = adults + childrenCount; 
     
     const initialPassengers = [];
+    const defaultSelections = {};
+
     for(let i = 1; i <= flyerCount; i++) {
-      initialPassengers.push({ id: `flyer-${i}`, label: `Passenger ${i}` });
+      const pId = `flyer-${i}`;
+      initialPassengers.push({ id: pId, label: `Passenger ${i}` });
+      // Default everyone to the free 4kg pack initially
+      defaultSelections[pId] = BAGGAGE_OPTIONS[0]; 
     }
     setPassengers(initialPassengers);
+    setBaggageSelections(defaultSelections);
   }, [searchParams]);
 
-  // Calculate Flexi Pass Price dynamically
-  const calculateFlexiPrice = (kg) => {
-    if (kg === 0) return 0;
-    if (kg <= 12) return kg * FLEXI_RATE_UP_TO_12;
-    return (12 * FLEXI_RATE_UP_TO_12) + ((kg - 12) * FLEXI_RATE_ABOVE_12);
-  };
+  // Handle Baggage Selection & GTM Push
+  const handleBagSelect = (passengerId, newBag) => {
+    const oldBag = baggageSelections[passengerId];
 
-  const handleFixedSelect = (passId, pkg) => {
-    setBaggageCart(prev => ({
+    // Don't do anything if they clicked the bag they already have selected
+    if (oldBag && oldBag.id === newBag.id) return;
+
+    // 1. Update React State
+    setBaggageSelections(prev => ({
       ...prev,
-      [passId]: { type: "Fixed", weight: pkg.weight, price: pkg.price, name: pkg.label }
+      [passengerId]: newBag
     }));
-  };
 
-  const handleFlexiChange = (passId, kg) => {
-    if (kg === 0) {
-      const newCart = { ...baggageCart };
-      delete newCart[passId];
-      setBaggageCart(newCart);
-      return;
+    window.dataLayer = window.dataLayer || [];
+
+    // 2. GTM Push: Remove the old bag (if it wasn't the free default)
+    if (oldBag && oldBag.price > 0) {
+      window.dataLayer.push({
+        event: "item_removed_from_cart",
+        action_type: "remove_from_cart",
+        product_id: oldBag.name,
+        name: oldBag.name,
+        taxonomy: ["Baggage Add-ons"],
+        price: oldBag.price,
+        sale_price: oldBag.price,
+        quantity: 1,
+        image_url: window.location.origin + "/baggage-icon.png",
+        url: window.location.origin + window.location.pathname
+      });
+      console.log("Fired GTM: item_removed_from_cart", oldBag.name);
     }
-    setBaggageCart(prev => ({
-      ...prev,
-      [passId]: { type: "Flexi", weight: kg, price: calculateFlexiPrice(kg), name: `${kg} kg Flexi Pass` }
-    }));
+
+    // 3. GTM Push: Add the new bag (if it costs money)
+    if (newBag.price > 0) {
+      window.dataLayer.push({
+        event: "item_added_to_cart",
+        action_type: "add_to_cart",
+        product_id: newBag.name,
+        name: newBag.name,
+        taxonomy: ["Baggage Add-ons"],
+        price: newBag.price,
+        sale_price: newBag.price,
+        quantity: 1,
+        image_url: window.location.origin + "/baggage-icon.png",
+        url: window.location.origin + window.location.pathname
+      });
+      console.log("Fired GTM: item_added_to_cart", newBag.name);
+    }
   };
 
-  const removeBaggage = (passId) => {
-    const newCart = { ...baggageCart };
-    delete newCart[passId];
-    setBaggageCart(newCart);
-  };
-
-  const totalBaggageCost = Object.values(baggageCart).reduce((sum, item) => sum + item.price, 0);
+  const totalBaggageCost = Object.values(baggageSelections).reduce((sum, bag) => sum + bag.price, 0);
 
   const handleNext = () => {
-    alert("Baggage saved to your booking!");
-    // Move to the final Add-ons step: Seats!
+    alert("Baggage confirmed! Moving to Seat Selection...");
+    // Move to the Seats page we built earlier!
     window.location.href = `/add-ons/seats?${searchParams.toString()}`;
   };
 
@@ -80,95 +99,47 @@ function BaggageContent() {
       <div className="w-full lg:w-2/3">
         
         <div className="mb-6">
-          <h1 className="text-3xl md:text-4xl font-black text-black">Extra Baggage</h1>
-          <p className="text-gray-500 font-bold uppercase text-sm mt-1 tracking-wide">Don't pack light, pack smart.</p>
+          <h1 className="text-3xl md:text-4xl font-black text-black">Baggage Allowance</h1>
+          <p className="text-gray-500 font-bold uppercase text-sm mt-1 tracking-wide">Select baggage for each passenger</p>
         </div>
 
-        {/* DISCOUNT BANNER */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-400 p-5 rounded-xl shadow-md text-white flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-          <div>
-            <div className="font-black text-lg flex items-center gap-2">
-              <span>🧳</span> Pre-book & Save 20%
-            </div>
-            <div className="text-sm font-medium mt-1">
-              Airport flat rates are <span className="font-black underline">${AIRPORT_RATE_PER_KG}/kg</span>. Pre-book now to unlock our discounted Flexi rates and Fixed packages!
-            </div>
-          </div>
-        </div>
-
-        {/* PASSENGER BAGGAGE CARDS */}
-        <div className="flex flex-col gap-6 mb-10">
-          {passengers.map((p) => {
-            const currentSelection = baggageCart[p.id];
-            const isFlexi = currentSelection?.type === "Flexi";
-            const flexiValue = isFlexi ? currentSelection.weight : 0;
-
+        <div className="flex flex-col gap-8">
+          {passengers.map((passenger) => {
+            const selectedBagId = baggageSelections[passenger.id]?.id;
+            
             return (
-              <div key={p.id} className={`bg-white rounded-xl shadow-sm border p-6 transition-colors ${currentSelection ? 'border-blue-500' : 'border-gray-200'}`}>
-                <div className="flex items-center justify-between mb-6 border-b border-gray-100 pb-4">
-                  <h3 className="font-black text-black text-xl">{p.label}</h3>
-                  {currentSelection && (
-                    <button onClick={() => removeBaggage(p.id)} className="text-xs font-bold text-red-500 hover:underline">
-                      Remove Bag
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-8">
-                  {/* Fixed Packages */}
-                  <div className="flex-1">
-                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-wide mb-3">Quick Add Packages</h4>
-                    <div className="flex flex-col gap-3">
-                      {FIXED_PACKAGES.map(pkg => {
-                        const isSelected = currentSelection?.name === pkg.label;
-                        return (
-                          <button 
-                            key={pkg.id}
-                            onClick={() => handleFixedSelect(p.id, pkg)}
-                            className={`flex justify-between items-center p-3 rounded-lg border-2 transition-all font-bold text-sm ${isSelected ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-100 bg-gray-50 text-gray-700 hover:border-blue-300'}`}
-                          >
-                            <span>{pkg.label}</span>
-                            <span>${pkg.price}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* Vertical Divider */}
-                  <div className="hidden md:block w-px bg-gray-100"></div>
-
-                  {/* Flexi Pass Slider */}
-                  <div className="flex-1">
-                    <h4 className="text-xs font-black text-gray-400 uppercase tracking-wide mb-3">Flexi Pass (1 - 30 kg)</h4>
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100 h-full flex flex-col justify-center">
-                      
-                      <div className="flex justify-between text-xs font-bold text-gray-500 mb-2">
-                        <span>0 kg</span>
-                        <span className="text-blue-600">Selected: {flexiValue} kg</span>
-                        <span>30 kg</span>
-                      </div>
-                      
-                      <input 
-                        type="range" 
-                        min="0" 
-                        max="30" 
-                        value={flexiValue}
-                        onChange={(e) => handleFlexiChange(p.id, parseInt(e.target.value))}
-                        className="w-full accent-blue-600 cursor-pointer h-2 bg-gray-200 rounded-lg appearance-none"
-                      />
-                      
-                      <div className="mt-4 text-xs font-medium text-gray-500 text-center">
-                        <span className="font-bold text-black">${FLEXI_RATE_UP_TO_12}/kg</span> up to 12kg • <span className="font-bold text-black">${FLEXI_RATE_ABOVE_12}/kg</span> thereafter
-                      </div>
-
-                      {isFlexi && flexiValue > 0 && (
-                        <div className="mt-4 text-center font-black text-2xl text-blue-600">
-                          ${calculateFlexiPrice(flexiValue)}
+              <div key={passenger.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h2 className="font-black text-xl text-black border-b border-gray-100 pb-4 mb-4">
+                  {passenger.label}
+                </h2>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {BAGGAGE_OPTIONS.map((bag) => {
+                    const isSelected = selectedBagId === bag.id;
+                    
+                    return (
+                      <div 
+                        key={bag.id}
+                        onClick={() => handleBagSelect(passenger.id, bag)}
+                        className={`relative p-5 rounded-xl border-2 cursor-pointer transition-all flex flex-col items-start ${isSelected ? 'border-[#f5482b] bg-red-50' : 'border-gray-200 hover:border-[#f5482b] bg-white'}`}
+                      >
+                        {/* Checkmark badge if selected */}
+                        {isSelected && (
+                          <div className="absolute top-3 right-3 bg-[#f5482b] text-white w-5 h-5 rounded-full flex items-center justify-center text-xs font-black">
+                            ✓
+                          </div>
+                        )}
+                        
+                        <div className="text-3xl mb-3">{bag.icon}</div>
+                        <h3 className={`font-black text-lg leading-tight mb-1 ${isSelected ? 'text-[#f5482b]' : 'text-black'}`}>{bag.name}</h3>
+                        <p className="text-xs text-gray-500 font-medium mb-4 flex-1">{bag.desc}</p>
+                        
+                        <div className="font-black text-xl text-black mt-auto w-full text-left">
+                          {bag.price === 0 ? "Included" : `+$${bag.price}`}
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -177,45 +148,40 @@ function BaggageContent() {
 
       </div>
 
-      {/* RIGHT COLUMN: CART */}
+      {/* RIGHT COLUMN: CART SUMMARY */}
       <div className="w-full lg:w-1/3">
         <div className="sticky top-[100px] bg-white p-6 rounded-xl shadow-xl border border-gray-100 flex flex-col h-fit">
           
           <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-4">Baggage Summary</h2>
           
-          {Object.keys(baggageCart).length === 0 ? (
-            <div className="text-center py-10 text-gray-400 font-medium text-sm">
-              No extra baggage selected.<br/>You only have your cabin allowance.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-4 mb-6 flex-1">
-              {passengers.map(p => {
-                const bag = baggageCart[p.id];
-                if (!bag) return null;
-                return (
-                  <div key={p.id} className="flex justify-between items-center text-sm border-b border-gray-50 pb-2">
-                    <div>
-                      <div className="font-bold text-black">{p.label}</div>
-                      <div className="text-xs text-blue-600 font-bold">{bag.name}</div>
-                    </div>
-                    <div className="font-black text-black">${bag.price}</div>
+          <div className="flex flex-col gap-4 mb-6 flex-1">
+            {passengers.map(p => {
+              const bag = baggageSelections[p.id];
+              return (
+                <div key={p.id} className="flex justify-between items-start text-sm border-b border-gray-50 pb-3 last:border-0">
+                  <div>
+                    <div className="font-bold text-black">{p.label}</div>
+                    <div className="text-xs text-gray-500 font-medium">{bag ? bag.name : "Pending"}</div>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  <div className="font-black text-black">
+                    {bag && bag.price > 0 ? `+$${bag.price}` : "Free"}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
           <div className="border-t border-gray-200 pt-4 mt-auto">
             <div className="flex justify-between items-center text-xl font-black text-black mb-6">
-              <span>Total</span>
-              <span className="text-blue-600">${totalBaggageCost.toFixed(2)}</span>
+              <span>Baggage Total</span>
+              <span className="text-[#f5482b]">${totalBaggageCost.toFixed(2)}</span>
             </div>
 
             <button 
               onClick={handleNext}
               className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-colors shadow-lg active:scale-95"
             >
-              {Object.keys(baggageCart).length > 0 ? "Confirm & Next ➔" : "Skip Baggage ➔"}
+              Confirm & Next ➔
             </button>
           </div>
 
