@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
@@ -8,21 +8,11 @@ const INSURANCE_PLANS = [
   { id: "basic", name: "Basic Protection", price: 14, features: ["Trip Cancellation (50% refund)", "Medical Emergency up to $25,000", "Baggage Loss up to $500"], recommended: false }
 ];
 
-// MOCK DATA: In a real app, you would pull this from localStorage, Redux, or your Context API
+// MOCK DATA for Receipt
 const detailedAddons = {
-  seats: [
-    { pax: "Passenger 1", code: "4A", type: "Extra Legroom" },
-    { pax: "Passenger 2", code: "4B", type: "Extra Legroom" }
-  ],
-  meals: [
-    { name: "Paneer Tikka Masala", qty: 1 },
-    { name: "Vegan Buddha Bowl", qty: 1 },
-    { name: "Coca Cola Can", qty: 2 }
-  ],
-  baggage: [
-    { pax: "Passenger 1", type: "20 kg Flexi Pass" },
-    { pax: "Passenger 2", type: "7 kg Medium Pack" }
-  ]
+  seats: [{ pax: "Passenger 1", code: "4A", type: "Extra Legroom" }, { pax: "Passenger 2", code: "4B", type: "Extra Legroom" }],
+  meals: [{ name: "Paneer Tikka Masala", qty: 1 }, { name: "Vegan Buddha Bowl", qty: 1 }, { name: "Coca Cola Can", qty: 2 }],
+  baggage: [{ pax: "Passenger 1", type: "20 kg Flexi Pass" }, { pax: "Passenger 2", type: "7 kg Medium Pack" }]
 };
 
 function CheckoutContent() {
@@ -41,9 +31,81 @@ function CheckoutContent() {
 
   const baseFlightPrice = 250; 
   const totalFlightsCost = baseFlightPrice * totalFlyers * (tripType === "return" ? 2 : 1);
-  const estimatedAddons = 125; // Updated mock add-on cost
+  const estimatedAddons = 125; 
 
   const [selectedInsurance, setSelectedInsurance] = useState("premium");
+  const hasFiredInit = useRef(false);
+
+  // --- 1. FIRE AUTO-SELECTED GTM EVENT ON LOAD ---
+  useEffect(() => {
+    // Only fire once in React Strict Mode
+    if (!hasFiredInit.current) {
+      const defaultPlan = INSURANCE_PLANS.find(p => p.id === "premium");
+      
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "item_added_to_cart",
+        action_type: "add_to_cart",
+        product_id: defaultPlan.name,
+        name: defaultPlan.name,
+        taxonomy: ["Travel Insurance"],
+        price: defaultPlan.price,
+        sale_price: defaultPlan.price,
+        quantity: totalFlyers, // Multiplied by passenger count
+        image_url: window.location.origin + "/insurance-icon.png",
+        url: window.location.origin + window.location.pathname
+      });
+      
+      console.log("Fired GTM: item_added_to_cart (Auto-Selected)", defaultPlan.name);
+      hasFiredInit.current = true;
+    }
+  }, [totalFlyers]);
+
+  // --- 2. HANDLE INSURANCE CHANGES FOR GTM ---
+  const handleInsuranceChange = (newPlanId) => {
+    if (selectedInsurance === newPlanId) return;
+
+    const oldPlan = INSURANCE_PLANS.find(p => p.id === selectedInsurance);
+    const newPlan = INSURANCE_PLANS.find(p => p.id === newPlanId);
+
+    window.dataLayer = window.dataLayer || [];
+
+    // REMOVE OLD PLAN
+    if (oldPlan) {
+      window.dataLayer.push({
+        event: "item_removed_from_cart",
+        action_type: "remove_from_cart",
+        product_id: oldPlan.name,
+        name: oldPlan.name,
+        taxonomy: ["Travel Insurance"],
+        price: oldPlan.price,
+        sale_price: oldPlan.price,
+        quantity: totalFlyers,
+        image_url: window.location.origin + "/insurance-icon.png",
+        url: window.location.origin + window.location.pathname
+      });
+      console.log("Fired GTM: item_removed_from_cart", oldPlan.name);
+    }
+
+    // ADD NEW PLAN (If it's not "none")
+    if (newPlan) {
+      window.dataLayer.push({
+        event: "item_added_to_cart",
+        action_type: "add_to_cart",
+        product_id: newPlan.name,
+        name: newPlan.name,
+        taxonomy: ["Travel Insurance"],
+        price: newPlan.price,
+        sale_price: newPlan.price,
+        quantity: totalFlyers,
+        image_url: window.location.origin + "/insurance-icon.png",
+        url: window.location.origin + window.location.pathname
+      });
+      console.log("Fired GTM: item_added_to_cart", newPlan.name);
+    }
+
+    setSelectedInsurance(newPlanId);
+  };
 
   const insuranceCost = selectedInsurance === "none" ? 0 : (INSURANCE_PLANS.find(p => p.id === selectedInsurance)?.price * totalFlyers);
   const finalTotal = totalFlightsCost + estimatedAddons + insuranceCost;
@@ -94,15 +156,13 @@ function CheckoutContent() {
           </div>
         </div>
 
-        {/* NEW: DETAILED ADD-ONS SUMMARY */}
+        {/* DETAILED ADD-ONS SUMMARY */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-6 flex items-center gap-2">
             <span className="text-[#f5482b]">⭐</span> Selected Add-ons
           </h2>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            
-            {/* Seats */}
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
               <h3 className="font-black text-black text-sm uppercase tracking-wide mb-3">💺 Seats</h3>
               <ul className="flex flex-col gap-2 text-sm text-gray-700">
@@ -114,8 +174,6 @@ function CheckoutContent() {
                 ))}
               </ul>
             </div>
-
-            {/* Baggage */}
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
               <h3 className="font-black text-black text-sm uppercase tracking-wide mb-3">🧳 Baggage</h3>
               <ul className="flex flex-col gap-2 text-sm text-gray-700">
@@ -127,8 +185,6 @@ function CheckoutContent() {
                 ))}
               </ul>
             </div>
-
-            {/* Meals */}
             <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
               <h3 className="font-black text-black text-sm uppercase tracking-wide mb-3">🍲 Meals & Extras</h3>
               <ul className="flex flex-col gap-2 text-sm text-gray-700">
@@ -139,7 +195,6 @@ function CheckoutContent() {
                 ))}
               </ul>
             </div>
-
           </div>
         </div>
 
@@ -154,7 +209,11 @@ function CheckoutContent() {
             {INSURANCE_PLANS.map(plan => {
               const isSelected = selectedInsurance === plan.id;
               return (
-                <div key={plan.id} onClick={() => setSelectedInsurance(plan.id)} className={`p-5 rounded-xl border-2 cursor-pointer transition-all relative ${isSelected ? 'border-[#f5482b] bg-red-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
+                <div 
+                  key={plan.id} 
+                  onClick={() => handleInsuranceChange(plan.id)} 
+                  className={`p-5 rounded-xl border-2 cursor-pointer transition-all relative ${isSelected ? 'border-[#f5482b] bg-red-50' : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+                >
                   {plan.recommended && <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#f5482b] text-white text-[10px] font-black uppercase tracking-widest py-1 px-3 rounded-full">Recommended</span>}
                   <div className="flex justify-between items-start mb-4">
                     <h3 className={`font-black text-lg ${isSelected ? 'text-[#f5482b]' : 'text-black'}`}>{plan.name}</h3>
@@ -167,14 +226,17 @@ function CheckoutContent() {
               );
             })}
           </div>
-          <button onClick={() => setSelectedInsurance("none")} className={`mt-4 text-xs font-bold w-full p-3 rounded-lg border-2 transition-colors ${selectedInsurance === "none" ? 'border-gray-400 bg-gray-100 text-gray-800' : 'border-gray-100 text-gray-400 hover:bg-gray-50'}`}>
+          <button 
+            onClick={() => handleInsuranceChange("none")} 
+            className={`mt-4 text-xs font-bold w-full p-3 rounded-lg border-2 transition-colors ${selectedInsurance === "none" ? 'border-gray-400 bg-gray-100 text-gray-800' : 'border-gray-100 text-gray-400 hover:bg-gray-50'}`}
+          >
             No thanks, I will risk traveling without insurance.
           </button>
         </div>
 
       </div>
 
-      {/* RIGHT COLUMN */}
+      {/* RIGHT COLUMN: PRICE BREAKDOWN */}
       <div className="w-full lg:w-1/3">
         <div className="sticky top-[100px] bg-white p-6 rounded-xl shadow-xl border border-gray-100 flex flex-col h-fit">
           <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-4">Price Breakdown</h2>
