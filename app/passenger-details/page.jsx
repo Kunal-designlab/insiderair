@@ -14,7 +14,7 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const [passengers, setPassengers] = useState([]);
 
-  // Generate the blank forms based on the URL data AND push Insider event
+  // Generate the blank forms based on the URL data AND push to DataLayer
   useEffect(() => {
     const adults = parseInt(searchParams.get("adults")) || 1;
     const childrenCount = parseInt(searchParams.get("children")) || 0;
@@ -37,24 +37,17 @@ function CheckoutContent() {
 
     setPassengers(initialPassengers);
 
-    // --- NEW: INSIDER QUEUE PUSH LOGIC ---
-    window.InsiderQueue = window.InsiderQueue || [];
-    window.InsiderQueue.push({
-        type: 'custom_event',
-        value: [{
-            event_name: 'passenger-details', 
-            event_parameters: {
-                "quantity": totalFlyers, 
-                "custom": {
-                    "adults": adults,
-                    "children": childrenCount,
-                    "infants": infants 
-                }
-            }
-        }]
+    // --- CLEAN DATALAYER PUSH ---
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+      event: "passenger_details_view",
+      quantity: totalFlyers,
+      adults: adults,
+      children: childrenCount,
+      infants: infants
     });
     
-    console.log("Fired Insider custom event: passenger-details", { quantity: totalFlyers, adults, childrenCount, infants });
+    console.log("Fired GTM Passenger Details View with quantity:", totalFlyers);
 
   }, [searchParams]);
 
@@ -76,7 +69,6 @@ function CheckoutContent() {
     }
 
     console.log("Verified Passenger Data:", passengers);
-    alert("Passenger Details saved! Proceeding to Add-ons...");
     window.location.href = `/add-ons/meals?${searchParams.toString()}`; 
   };
 
