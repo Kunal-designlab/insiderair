@@ -14,11 +14,14 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const [passengers, setPassengers] = useState([]);
 
-  // Generate the blank forms based on the URL data
+  // Generate the blank forms based on the URL data AND push Insider event
   useEffect(() => {
     const adults = parseInt(searchParams.get("adults")) || 1;
     const childrenCount = parseInt(searchParams.get("children")) || 0;
     const infants = parseInt(searchParams.get("infants")) || 0;
+    
+    // Calculate total flyers for the "quantity" field
+    const totalFlyers = adults + childrenCount + infants;
 
     const initialPassengers = [];
     
@@ -33,6 +36,26 @@ function CheckoutContent() {
     }
 
     setPassengers(initialPassengers);
+
+    // --- NEW: INSIDER QUEUE PUSH LOGIC ---
+    window.InsiderQueue = window.InsiderQueue || [];
+    window.InsiderQueue.push({
+        type: 'custom_event',
+        value: [{
+            event_name: 'passenger-details', 
+            event_parameters: {
+                "quantity": totalFlyers, 
+                "custom": {
+                    "adults": adults,
+                    "children": childrenCount,
+                    "infants": infants 
+                }
+            }
+        }]
+    });
+    
+    console.log("Fired Insider custom event: passenger-details", { quantity: totalFlyers, adults, childrenCount, infants });
+
   }, [searchParams]);
 
   const handleChange = (id, field, value) => {
