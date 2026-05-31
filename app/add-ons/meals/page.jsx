@@ -75,14 +75,14 @@ function MealsContent() {
     window.dataLayer.push({
       event: eventName,
       action_type: actionType,
-      meal_id: item.name,        // Requested: Name of item as ID
-      meal_name: item.name,
-      meal_taxonomy: [TAXONOMY_MAP[category]],
-      meal_price: item.price,
-      meal_sale_price: salePrice,
-      meal_quantity: absQty,
-      meal_image_url: window.location.origin + item.img, // Absolute URL for image
-      meal_url: window.location.origin + "/"             // Homepage URL
+      product_id: item.name,     // Mapped to product_id so you can reuse your existing GTM variable!
+      name: item.name,
+      taxonomy: [TAXONOMY_MAP[category]],
+      price: item.price,
+      sale_price: salePrice,
+      quantity: absQty,
+      image_url: window.location.origin + item.img, 
+      url: window.location.origin + "/"             
     });
 
     console.log(`Fired GTM: ${eventName}`, item.name);
@@ -105,7 +105,6 @@ function MealsContent() {
     
     return (
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col hover:border-[#f5482b] transition-colors">
-        {/* Placeholder for Image - It will show a gray box until you add the images */}
         <div className="h-40 bg-gray-200 relative">
           <img src={item.img} alt={item.name} className="w-full h-full object-cover fallback-bg" onError={(e) => e.target.style.display = 'none'} />
           <div className="absolute inset-0 flex items-center justify-center text-gray-400 font-bold text-xs"></div>
