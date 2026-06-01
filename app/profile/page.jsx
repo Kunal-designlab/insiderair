@@ -5,12 +5,18 @@ import { onAuthStateChanged, updateEmail } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 const COUNTRY_CODES = [
-  { code: "+1", country: "US/CA" },
+  { code: "+61", country: "Australia" },
+  { code: "+91", country: "India" },
+  { code: "+62", country: "Indonesia" },
+  { code: "+81", country: "Japan" },
+  { code: "+60", country: "Malaysia" },
+  { code: "+63", country: "Philippines" },
+  { code: "+65", country: "Singapore" },
+  { code: "+82", country: "South Korea" },
+  { code: "+66", country: "Thailand" },
   { code: "+44", country: "UK" },
-  { code: "+91", country: "IN" },
-  { code: "+61", country: "AU" },
-  { code: "+65", country: "SG" },
-  { code: "+63", country: "PH" },
+  { code: "+1",  country: "US" },
+  { code: "+84", country: "Vietnam" },
 ];
 
 export default function ProfilePage() {
