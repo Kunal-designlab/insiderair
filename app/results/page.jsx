@@ -340,8 +340,6 @@ function ResultsContent() {
         origin_city: foundFrom.city,
         name: routeString,
         flight_type: flightType,
-        
-        // ADD THESE TWO LINES:
         departure_date: humanDate,
         departure_date_rfc: rfcDate
       });
@@ -375,10 +373,14 @@ function ResultsContent() {
   const handleExpandFlight = (flight, isReturnLeg) => {
     const isCurrentlyExpanded = isReturnLeg ? (expandedReturn === flight.id) : (expandedOutbound === flight.id);
 
-    // If we are opening/selecting the flight (not closing it)
+    // 1. Define these OUTSIDE the if-block so both Add and Remove tracking can see them
+    const originObj = isReturnLeg ? toAirport : fromAirport;
+    const destObj = isReturnLeg ? fromAirport : toAirport;
+    const legRouteString = `${originObj.code}-${destObj.code}`;
+    const parsedPrice = parseFloat(flight.price.replace('$', ''));
+
+    // 2. If we are OPENING/SELECTING the flight
     if (!isCurrentlyExpanded) {
-      const originObj = isReturnLeg ? toAirport : fromAirport;
-      const destObj = isReturnLeg ? fromAirport : toAirport;
       const flightDateStr = isReturnLeg ? returnDate : departureDate;
       const flightType = tripType === "return" ? "RT" : "OW";
 
@@ -386,21 +388,17 @@ function ResultsContent() {
       let rfcDate = "";
 
       if (flightDateStr) {
-        // Parse the YYYY-MM-DD string reliably
         const [y, m, d] = flightDateStr.split('-');
         const dateObj = new Date(Date.UTC(y, m - 1, d));
         humanDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
-        // Generate the strict RFC 3339 format using the specific flight's departure time (e.g., 2026-06-15T14:30:00Z)
         const depTimeStr = flight.depTime || "00:00";
         rfcDate = `${flightDateStr}T${depTimeStr}:00Z`;
       }
 
-      // The specific route string for this leg (e.g. "DEL-SIN")
-      const legRouteString = `${originObj.code}-${destObj.code}`;
-
-      // Push to DataLayer
       window.dataLayer = window.dataLayer || [];
+      
+      // A. PRODUCT PAGE VIEW
       window.dataLayer.push({
         event: "product_page_view",
         destination_iata: destObj.code,
@@ -415,32 +413,42 @@ function ResultsContent() {
         departure_date_rfc: rfcDate
       });
 
-      console.log("Fired GTM Product Page View:", legRouteString, "| RFC Date:", rfcDate);
+      // B. ADD TO CART
+      window.dataLayer.push({
+        event: "item_added_to_cart",
+        action_type: "add_to_cart",
+        product_id: legRouteString,
+        name: legRouteString, 
+        taxonomy: [legRouteString],
+        price: parsedPrice,
+        sale_price: parsedPrice,
+        quantity: 1, 
+        image_url: "https://insiderair.vercel.app/destinations/tokyo.png",
+        url: window.location.href
+      });
+
+      console.log("Fired GTM: Product View & Add to Cart", legRouteString);
+    } 
+    // 3. If we are CLOSING/DESELECTING the flight
+    else {
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "item_removed_from_cart",
+        action_type: "remove_from_cart",
+        product_id: legRouteString,
+        name: legRouteString, 
+        taxonomy: [legRouteString],
+        price: parsedPrice,
+        sale_price: parsedPrice,
+        quantity: 1, 
+        image_url: "https://insiderair.vercel.app/destinations/tokyo.png",
+        url: window.location.href
+      });
+      
+      console.log("Fired GTM: item_removed_from_cart", legRouteString);
     }
 
-    // --- NEW: Add Flight to Cart Event ---
-  window.dataLayer.push({
-  event: "item_added_to_cart",
-  action_type: "add_to_cart",
-  
-  // Use the exact same variables you used for the product_page_view!
-  product_id: legRouteString,
-  name: legRouteString, 
-  taxonomy: [legRouteString],
-  
-  // Strip the $ sign and convert to number, just like we did earlier
-  price: parseFloat(flight.price.replace('$', '')),
-  sale_price: parseFloat(flight.price.replace('$', '')),
-  
-  quantity: 1, // Or your total passenger count if you have it available here
-  
-  image_url: "https://insiderair.vercel.app/destinations/tokyo.png", // Your fallback image
-  url: window.location.href
-});
-
-console.log("Fired GTM: item_added_to_cart (Flight Selected)");
-
-    // Toggle the UI expansion
+    // 4. Toggle the UI expansion safely
     if (isReturnLeg) {
       setExpandedReturn(isCurrentlyExpanded ? null : flight.id);
     } else {
