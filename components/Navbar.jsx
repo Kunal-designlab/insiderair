@@ -1,16 +1,20 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
+import { auth } from "../../firebase"; // Adjust path if needed
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function Navbar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Check if user is logged in on mount
+  // REAL FIREBASE LISTENER
   useEffect(() => {
-    const authStatus = localStorage.getItem("isLoggedIn");
-    if (authStatus === "true") setIsLoggedIn(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user); // True if user exists, false if null
+    });
+    return () => unsubscribe(); // Cleanup listener on unmount
   }, []);
 
   // Close dropdown when clicking outside
@@ -24,17 +28,14 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem("isLoggedIn");
-    setIsLoggedIn(false);
-    setShowDropdown(false);
-    window.location.href = "/"; // Redirect to home
-  };
-
-  // Mock Login Function (Attach this to your actual login flow later)
-  const handleMockLogin = () => {
-    localStorage.setItem("isLoggedIn", "true");
-    setIsLoggedIn(true);
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      setShowDropdown(false);
+      window.location.href = "/"; // Redirect to home after logout
+    } catch (error) {
+      console.error("Logout Error:", error);
+    }
   };
 
   return (
@@ -48,12 +49,12 @@ export default function Navbar() {
         <Link href="/destinations" className="font-bold text-sm hover:text-[#f5482b] transition-colors hidden md:block">Destinations</Link>
         
         {!isLoggedIn ? (
-          <button 
-            onClick={handleMockLogin} 
+          <Link 
+            href="/login" 
             className="bg-[#f5482b] hover:bg-[#d83c20] text-white font-bold py-2 px-6 rounded-full text-sm transition-colors"
           >
             Log In
-          </button>
+          </Link>
         ) : (
           <div className="relative" ref={dropdownRef}>
             <button 
