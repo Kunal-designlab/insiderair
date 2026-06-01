@@ -1,8 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import { auth, db } from "../../firebase"; // ⚠️ Adjust to your firebase config path
+import { auth, db } from "../../firebase"; 
 import { onAuthStateChanged, updateEmail } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 const COUNTRY_CODES = [
   { code: "+61", country: "Australia" },
@@ -27,14 +27,14 @@ export default function ProfilePage() {
     email: "",
     phone: "",
     countryCode: "+1",
-    tier: "Swift Tier"
+    tier: "Swift Tier",
+    membershipId: "" 
   });
 
-  // Form States
   const [emailForm, setEmailForm] = useState({ old: "", new: "" });
   const [phoneForm, setPhoneForm] = useState({ old: "", code: "+1", new: "" });
 
-  // 1. Fetch Real User Data from Firestore
+  // 1. Fetch User Data from Firestore
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
@@ -45,12 +45,14 @@ export default function ProfilePage() {
           
           if (userDocSnap.exists()) {
             const data = userDocSnap.data();
+            
             setUser({
               name: data.name || currentUser.displayName || "Valued Flyer",
               email: data.email || currentUser.email || "",
               phone: data.phone || "",
               countryCode: data.countryCode || "+1",
-              tier: data.tier || "Swift Tier"
+              tier: data.tier || "Swift Tier",
+              membershipId: data.membershipId || "" 
             });
             setPhoneForm(prev => ({ ...prev, code: data.countryCode || "+1" }));
           }
@@ -58,7 +60,7 @@ export default function ProfilePage() {
           console.error("Error fetching user data:", error);
         }
       } else {
-        // Not logged in -> kick them to login
+        // Kick unauthenticated traffic out to login page
         window.location.href = "/login";
       }
       setLoading(false);
@@ -67,30 +69,74 @@ export default function ProfilePage() {
     return () => unsubscribe();
   }, []);
 
-  // 2. Handle Firestore & Auth Email Update
+  // 2. Handle Case-Insensitive Email Verification & Safe Proxy API Sync
   const handleEmailUpdate = async (e) => {
     e.preventDefault();
-    if (emailForm.old !== user.email) {
+
+    const oldEmailClean = emailForm.old.trim().toLowerCase();
+    const newEmailClean = emailForm.new.trim().toLowerCase();
+    const currentEmailClean = user.email.trim().toLowerCase();
+
+    // Verification Step A: Check old input field matches current state record
+    if (oldEmailClean !== currentEmailClean) {
       return alert("Old email does not match our records!");
     }
-    if (!emailForm.new) return alert("Please enter a new email.");
+    if (!newEmailClean) {
+      return alert("Please enter a new email.");
+    }
+    if (newEmailClean === currentEmailClean) {
+      return alert("New email must be different from your current email.");
+    }
     
     try {
-      // Update Firebase Auth Email (Requires recent login)
+      // Verification Step B: Check database for any duplicate users claiming the new target email
+      const usersRef = collection(db, "users");
+      const dupeQuery = query(usersRef, where("email", "==", newEmailClean));
+      const querySnapshot = await getDocs(dupeQuery);
+
+      if (!querySnapshot.empty) {
+        return alert("A user with this email already exists.");
+      }
+
+      // Execution Step C: Pass identities securely through local backend proxy router
+      const apiResponse = await fetch("/api/identity", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          oldEmail: oldEmailClean,
+          newEmail: newEmailClean
+        })
+      });
+
+      if (!apiResponse.ok) {
+        console.error("Proxy backend failed to pass identity unification parameters to Insider.");
+      } else {
+        console.log("Secure Identity Sync: Success");
+      }
+
+      // Execution Step D: Synchronize adjustments across Firebase Auth credentials
       if (auth.currentUser) {
-        await updateEmail(auth.currentUser, emailForm.new);
+        await updateEmail(auth.currentUser, newEmailClean);
       }
       
-      // Update Firestore Document
+      // Execution Step E: Synchronize changes across permanent firestore collections
       const userRef = doc(db, "users", userUid);
-      await updateDoc(userRef, { email: emailForm.new });
+      await updateDoc(userRef, { email: newEmailClean });
 
-      setUser(prev => ({ ...prev, email: emailForm.new }));
+      setUser(prev => ({ ...prev, email: newEmailClean }));
       setEmailForm({ old: "", new: "" });
       alert("Email updated successfully!");
       
+      // Execution Step F: Fire DataLayer parameters to track change updates
       window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({ event: "profile_updated", update_type: "email" });
+      window.dataLayer.push({ 
+        event: "user_updated", 
+        update_type: "email",
+        email: newEmailClean,
+        flyer_id: user.membershipId
+      });
     } catch (error) {
       console.error("Error updating email:", error);
       if (error.code === 'auth/requires-recent-login') {
@@ -101,7 +147,7 @@ export default function ProfilePage() {
     }
   };
 
-  // 3. Handle Firestore Phone Update
+  // 3. Handle Phone Integration & Format Cleaning Logic
   const handlePhoneUpdate = async (e) => {
     e.preventDefault();
     if (user.phone && phoneForm.old !== user.phone) {
@@ -111,24 +157,35 @@ export default function ProfilePage() {
 
     try {
       const userRef = doc(db, "users", userUid);
-      await updateDoc(userRef, { 
-        phone: phoneForm.new, 
-        countryCode: phoneForm.code 
-      });
+      
+      // Automatically sanitize text formatting to avoid spaces or syntax artifacts
+      const cleanPhone = phoneForm.new.replace(/\s+/g, '');
+      const fullPhoneNumber = `${phoneForm.code}${cleanPhone}`;
 
-      setUser(prev => ({ ...prev, phone: phoneForm.new, countryCode: phoneForm.code }));
+      await updateDoc(userRef, { phone: cleanPhone, countryCode: phoneForm.code });
+
+      setUser(prev => ({ ...prev, phone: cleanPhone, countryCode: phoneForm.code }));
       setPhoneForm({ old: "", code: "+1", new: "" });
       alert("Phone number updated successfully!");
 
+      // Dispatch clean tracking payloads
       window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({ event: "profile_updated", update_type: "phone" });
+      window.dataLayer.push({ 
+        event: "user_updated", 
+        update_type: "phone",
+        email: user.email.toLowerCase(),
+        flyer_id: user.membershipId,
+        phone_number: fullPhoneNumber 
+      });
+      console.log("Fired GTM: user_updated", fullPhoneNumber);
+
     } catch (error) {
       console.error("Error updating phone:", error);
       alert("Failed to update phone number.");
     }
   };
 
-  // 4. Handle Firestore Tier Upgrade
+  // 4. Handle Tier Level Modifications
   const handleUpgrade = async (newTier, price) => {
     const confirmMsg = `Upgrade to ${newTier} for $${price}?`;
     if (confirm(confirmMsg)) {
@@ -167,7 +224,7 @@ export default function ProfilePage() {
           {/* LEFT COLUMN: PERSONAL INFO & UPDATES */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             
-            {/* Display Info */}
+            {/* Display Info Card */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-4 text-[#f5482b]">Personal Details</h2>
               <div className="flex flex-col gap-4 text-sm">
@@ -185,10 +242,14 @@ export default function ProfilePage() {
                     {user.phone ? `${user.countryCode} ${user.phone}` : "Not Added"}
                   </span>
                 </div>
+                <div>
+                  <span className="font-bold text-gray-400 uppercase text-xs block mb-1">Flyer ID</span>
+                  <span className="font-black text-black tracking-wider">{user.membershipId}</span>
+                </div>
               </div>
             </div>
 
-            {/* Update Email Form */}
+            {/* Update Email Form Card */}
             <form onSubmit={handleEmailUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="font-black text-lg mb-4 text-black">Update Email</h3>
               <div className="flex flex-col gap-3">
@@ -208,7 +269,7 @@ export default function ProfilePage() {
               </div>
             </form>
 
-            {/* Update Phone Form */}
+            {/* Update Phone Form Card */}
             <form onSubmit={handlePhoneUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h3 className="font-black text-lg mb-4 text-black">{user.phone ? "Update" : "Add"} Mobile Number</h3>
               <div className="flex flex-col gap-3">
@@ -240,7 +301,7 @@ export default function ProfilePage() {
 
           </div>
 
-          {/* RIGHT COLUMN: MEMBERSHIP STATUS */}
+          {/* RIGHT COLUMN: MEMBERSHIP STATUS COLUMNS */}
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             
             <div className="bg-black text-white p-8 rounded-xl shadow-xl flex flex-col justify-center relative overflow-hidden">
@@ -256,7 +317,7 @@ export default function ProfilePage() {
 
             <h3 className="font-black text-2xl text-black mt-4">Available Upgrades</h3>
 
-            {/* UPGRADE 1: Albatross Tier */}
+            {/* UPGRADE PROFILE OPTION 1: Albatross Tier */}
             <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Albatross Tier" || user.tier === "Arctic Tern Tier" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
@@ -278,7 +339,7 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            {/* UPGRADE 2: Arctic Tern Tier */}
+            {/* UPGRADE PROFILE OPTION 2: Arctic Tern Tier */}
             <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Arctic Tern Tier" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
