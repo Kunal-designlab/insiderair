@@ -4,12 +4,11 @@ export async function PATCH(request) {
   try {
     const { oldEmail, newEmail } = await request.json();
 
-    // Secure server-to-server fetch request
     const apiResponse = await fetch("https://unification.useinsider.com/api/user/v1/identity", {
       method: "PATCH",
       headers: {
         "X-PARTNER-NAME": "cebupacificcdppoc",
-        "X-REQUEST-TOKEN": process.env.INSIDER_REQUEST_TOKEN, // Completely hidden!
+        "X-REQUEST-TOKEN": process.env.INSIDER_REQUEST_TOKEN, 
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -19,8 +18,10 @@ export async function PATCH(request) {
     });
 
     if (!apiResponse.ok) {
-      console.error("Insider Server API failed with status:", apiResponse.status);
-      return NextResponse.json({ error: "Insider API sync failed" }, { status: apiResponse.status });
+      // Grab the exact text response from Insider to read the true error
+      const errorText = await apiResponse.text();
+      console.error(`Insider API Rejected Request (${apiResponse.status}):`, errorText);
+      return NextResponse.json({ error: "Insider API sync failed", details: errorText }, { status: apiResponse.status });
     }
 
     return NextResponse.json({ success: true });
