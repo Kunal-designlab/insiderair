@@ -1,5 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
+import { auth, db } from "@/lib/firebase"; // ⚠️ Adjust to your firebase config path
+import { onAuthStateChanged, updateEmail } from "firebase/auth";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 const COUNTRY_CODES = [
   { code: "+1", country: "US/CA" },
@@ -11,80 +14,142 @@ const COUNTRY_CODES = [
 ];
 
 export default function ProfilePage() {
+  const [loading, setLoading] = useState(true);
+  const [userUid, setUserUid] = useState(null);
   const [user, setUser] = useState({
-    name: "Alex Flyer",
-    email: "alex@insiderair.com",
+    name: "",
+    email: "",
     phone: "",
     countryCode: "+1",
     tier: "Swift Tier"
   });
 
-  // Load from local storage on mount
-  useEffect(() => {
-    const savedUser = localStorage.getItem("insiderUser");
-    if (savedUser) setUser(JSON.parse(savedUser));
-  }, []);
-
-  // Save to local storage when user changes
-  useEffect(() => {
-    localStorage.setItem("insiderUser", JSON.stringify(user));
-  }, [user]);
-
   // Form States
   const [emailForm, setEmailForm] = useState({ old: "", new: "" });
   const [phoneForm, setPhoneForm] = useState({ old: "", code: "+1", new: "" });
 
-  const handleEmailUpdate = (e) => {
+  // 1. Fetch Real User Data from Firestore
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUserUid(currentUser.uid);
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            setUser({
+              name: data.name || currentUser.displayName || "Valued Flyer",
+              email: data.email || currentUser.email || "",
+              phone: data.phone || "",
+              countryCode: data.countryCode || "+1",
+              tier: data.tier || "Swift Tier"
+            });
+            setPhoneForm(prev => ({ ...prev, code: data.countryCode || "+1" }));
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
+      } else {
+        // Not logged in -> kick them to login
+        window.location.href = "/login";
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 2. Handle Firestore & Auth Email Update
+  const handleEmailUpdate = async (e) => {
     e.preventDefault();
     if (emailForm.old !== user.email) {
-      alert("Old email does not match our records!");
-      return;
+      return alert("Old email does not match our records!");
     }
     if (!emailForm.new) return alert("Please enter a new email.");
     
-    setUser({ ...user, email: emailForm.new });
-    setEmailForm({ old: "", new: "" });
-    alert("Email updated successfully!");
-    
-    // GTM Push
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({ event: "profile_updated", update_type: "email" });
+    try {
+      // Update Firebase Auth Email (Requires recent login)
+      if (auth.currentUser) {
+        await updateEmail(auth.currentUser, emailForm.new);
+      }
+      
+      // Update Firestore Document
+      const userRef = doc(db, "users", userUid);
+      await updateDoc(userRef, { email: emailForm.new });
+
+      setUser(prev => ({ ...prev, email: emailForm.new }));
+      setEmailForm({ old: "", new: "" });
+      alert("Email updated successfully!");
+      
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: "profile_updated", update_type: "email" });
+    } catch (error) {
+      console.error("Error updating email:", error);
+      if (error.code === 'auth/requires-recent-login') {
+        alert("For security reasons, please log out and log back in to change your email.");
+      } else {
+        alert("Failed to update email. " + error.message);
+      }
+    }
   };
 
-  const handlePhoneUpdate = (e) => {
+  // 3. Handle Firestore Phone Update
+  const handlePhoneUpdate = async (e) => {
     e.preventDefault();
-    // If they have an existing phone, mandate the old one matches
     if (user.phone && phoneForm.old !== user.phone) {
-      alert("Old phone number does not match our records!");
-      return;
+      return alert("Old phone number does not match our records!");
     }
     if (!phoneForm.new) return alert("Please enter a new phone number.");
 
-    setUser({ ...user, phone: phoneForm.new, countryCode: phoneForm.code });
-    setPhoneForm({ old: "", code: "+1", new: "" });
-    alert("Phone number updated successfully!");
-
-    // GTM Push
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({ event: "profile_updated", update_type: "phone" });
-  };
-
-  const handleUpgrade = (newTier, price) => {
-    const confirmMsg = `Upgrade to ${newTier} for $${price}?`;
-    if (confirm(confirmMsg)) {
-      setUser({ ...user, tier: newTier });
-      alert(`Congratulations! You are now flying in the ${newTier}! 🦅`);
-      
-      // GTM Push for revenue
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "membership_upgraded",
-        tier: newTier,
-        value: price,
-        currency: "USD"
+    try {
+      const userRef = doc(db, "users", userUid);
+      await updateDoc(userRef, { 
+        phone: phoneForm.new, 
+        countryCode: phoneForm.code 
       });
+
+      setUser(prev => ({ ...prev, phone: phoneForm.new, countryCode: phoneForm.code }));
+      setPhoneForm({ old: "", code: "+1", new: "" });
+      alert("Phone number updated successfully!");
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ event: "profile_updated", update_type: "phone" });
+    } catch (error) {
+      console.error("Error updating phone:", error);
+      alert("Failed to update phone number.");
     }
   };
+
+  // 4. Handle Firestore Tier Upgrade
+  const handleUpgrade = async (newTier, price) => {
+    const confirmMsg = `Upgrade to ${newTier} for $${price}?`;
+    if (confirm(confirmMsg)) {
+      try {
+        const userRef = doc(db, "users", userUid);
+        await updateDoc(userRef, { tier: newTier });
+
+        setUser(prev => ({ ...prev, tier: newTier }));
+        alert(`Congratulations! You are now flying in the ${newTier}! 🦅`);
+        
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "membership_upgraded",
+          tier: newTier,
+          value: price,
+          currency: "USD"
+        });
+      } catch (error) {
+        console.error("Error upgrading tier:", error);
+        alert("Failed to process upgrade.");
+      }
+    }
+  };
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center font-black text-2xl text-gray-400">Loading Profile...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
