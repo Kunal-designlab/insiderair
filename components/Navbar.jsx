@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
-import { auth } from "../../firebase"; // Adjust path if needed
+import { auth } from "../firebase"; // Adjust path if needed
 import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function Navbar() {

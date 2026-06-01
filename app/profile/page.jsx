@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { auth, db } from "@/lib/firebase"; // ⚠️ Adjust to your firebase config path
+import { auth, db } from "../../firebase"; // ⚠️ Adjust to your firebase config path
 import { onAuthStateChanged, updateEmail } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 
