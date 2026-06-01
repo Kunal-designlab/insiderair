@@ -16,7 +16,7 @@ export default function ProfilePage() {
     email: "alex@insiderair.com",
     phone: "",
     countryCode: "+1",
-    tier: "Normal Flying Bird"
+    tier: "Swift Tier"
   });
 
   // Load from local storage on mount
@@ -73,7 +73,7 @@ export default function ProfilePage() {
     const confirmMsg = `Upgrade to ${newTier} for $${price}?`;
     if (confirm(confirmMsg)) {
       setUser({ ...user, tier: newTier });
-      alert(`Congratulations! You are now a ${newTier}! 🦅`);
+      alert(`Congratulations! You are now flying in the ${newTier}! 🦅`);
       
       // GTM Push for revenue
       window.dataLayer = window.dataLayer || [];
@@ -173,44 +173,45 @@ export default function ProfilePage() {
           <div className="w-full lg:w-1/2 flex flex-col gap-6">
             
             <div className="bg-black text-white p-8 rounded-xl shadow-xl flex flex-col justify-center relative overflow-hidden">
-              <div className="absolute -right-10 -top-10 opacity-10 text-9xl">🦅</div>
+              <div className="absolute -right-10 -top-10 opacity-10 text-9xl">✈️</div>
               <span className="font-bold text-gray-400 uppercase text-xs tracking-widest mb-2">Current Status</span>
               <h2 className="text-3xl font-black text-[#f5482b]">{user.tier}</h2>
               <p className="mt-2 text-sm font-medium text-gray-300">
-                {user.tier === "Normal Flying Bird" && "Earning 2 miles per booking."}
-                {user.tier === "Long Flying Bird" && "Priority Check-in • 5 miles per booking."}
-                {user.tier === "Longest Flying Bird" && "Priority Check-in • Lounge Access • 10 miles per booking."}
+                {user.tier === "Swift Tier" && "Earning 2 miles per booking."}
+                {user.tier === "Albatross Tier" && "Priority Check-in • 5 miles per booking."}
+                {user.tier === "Arctic Tern Tier" && "Priority Check-in • Lounge Access • 10 miles per booking."}
               </p>
             </div>
 
             <h3 className="font-black text-2xl text-black mt-4">Available Upgrades</h3>
 
-            {/* UPGRADE 1: Long Flying Bird */}
-            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
+            {/* UPGRADE 1: Albatross Tier */}
+            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Albatross Tier" || user.tier === "Arctic Tern Tier" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h4 className="font-black text-xl text-black">Long Flying Bird</h4>
+                  <h4 className="font-black text-xl text-black">Albatross Tier</h4>
                   <p className="text-sm font-bold text-gray-500 mt-1">Upgrade Fee: $50</p>
                 </div>
               </div>
               <ul className="text-sm font-medium text-gray-700 mb-6 flex flex-col gap-2">
                 <li>✨ Priority Check-in always</li>
                 <li>✨ Earn 5 miles per booking</li>
+                <li className="text-xs text-gray-400 italic mt-2">Named after the ocean gliders that effortlessly fly thousands of miles.</li>
               </ul>
               <button 
-                disabled={user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird"}
-                onClick={() => handleUpgrade("Long Flying Bird", 50)}
+                disabled={user.tier === "Albatross Tier" || user.tier === "Arctic Tern Tier"}
+                onClick={() => handleUpgrade("Albatross Tier", 50)}
                 className="w-full py-3 rounded-lg font-black bg-[#f5482b] text-white disabled:bg-gray-200 disabled:text-gray-400"
               >
-                {user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird" ? "Unlocked" : "Upgrade Now"}
+                {user.tier === "Albatross Tier" || user.tier === "Arctic Tern Tier" ? "Unlocked" : "Upgrade Now"}
               </button>
             </div>
 
-            {/* UPGRADE 2: Longest Flying Bird */}
-            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Longest Flying Bird" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
+            {/* UPGRADE 2: Arctic Tern Tier */}
+            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Arctic Tern Tier" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h4 className="font-black text-xl text-black">Longest Flying Bird</h4>
+                  <h4 className="font-black text-xl text-black">Arctic Tern Tier</h4>
                   <p className="text-sm font-bold text-gray-500 mt-1">Upgrade Fee: $100</p>
                 </div>
               </div>
@@ -218,13 +219,14 @@ export default function ProfilePage() {
                 <li>👑 Priority Check-in always</li>
                 <li>👑 Premium Free Access Lounge Card</li>
                 <li>👑 Earn 10 miles per flight</li>
+                <li className="text-xs text-gray-400 italic mt-2">Named after the bird with the longest migration on Earth. The ultimate traveler.</li>
               </ul>
               <button 
-                disabled={user.tier === "Longest Flying Bird"}
-                onClick={() => handleUpgrade("Longest Flying Bird", 100)}
+                disabled={user.tier === "Arctic Tern Tier"}
+                onClick={() => handleUpgrade("Arctic Tern Tier", 100)}
                 className="w-full py-3 rounded-lg font-black bg-black text-white disabled:bg-gray-200 disabled:text-gray-400 hover:bg-gray-800"
               >
-                {user.tier === "Longest Flying Bird" ? "Max Level Reached" : "Upgrade Now"}
+                {user.tier === "Arctic Tern Tier" ? "Max Level Reached" : "Upgrade Now"}
               </button>
             </div>
 
