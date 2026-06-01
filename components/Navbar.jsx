@@ -1,26 +1,95 @@
 "use client";
 import Link from "next/link";
+import { useState, useEffect, useRef } from "react";
 
 export default function Navbar() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Check if user is logged in on mount
+  useEffect(() => {
+    const authStatus = localStorage.getItem("isLoggedIn");
+    if (authStatus === "true") setIsLoggedIn(true);
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("isLoggedIn");
+    setIsLoggedIn(false);
+    setShowDropdown(false);
+    window.location.href = "/"; // Redirect to home
+  };
+
+  // Mock Login Function (Attach this to your actual login flow later)
+  const handleMockLogin = () => {
+    localStorage.setItem("isLoggedIn", "true");
+    setIsLoggedIn(true);
+  };
+
   return (
-    <nav className="bg-white text-black p-4 md:p-5 shadow-md sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <nav className="bg-black text-white px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-lg">
+      <Link href="/" className="font-black text-2xl tracking-tighter">
+        INSIDER<span className="text-[#f5482b]">AIR</span>
+      </Link>
+
+      <div className="flex items-center gap-6">
+        <Link href="/" className="font-bold text-sm hover:text-[#f5482b] transition-colors hidden md:block">Flights</Link>
+        <Link href="/destinations" className="font-bold text-sm hover:text-[#f5482b] transition-colors hidden md:block">Destinations</Link>
         
-        {/* LOGO & TITLE */}
-        <Link href="/" className="flex items-center gap-3 md:gap-4 cursor-pointer">
-          <img src="/logo.png" alt="Insider Air Logo" className="h-8 md:h-10 w-auto" />
-          <div className="font-black text-xl md:text-2xl tracking-wider">INSIDER AIR</div>
-        </Link>
+        {!isLoggedIn ? (
+          <button 
+            onClick={handleMockLogin} 
+            className="bg-[#f5482b] hover:bg-[#d83c20] text-white font-bold py-2 px-6 rounded-full text-sm transition-colors"
+          >
+            Log In
+          </button>
+        ) : (
+          <div className="relative" ref={dropdownRef}>
+            <button 
+              onClick={() => setShowDropdown(!showDropdown)}
+              className="w-10 h-10 rounded-full bg-[#f5482b] flex items-center justify-center font-black text-white hover:ring-4 ring-white/20 transition-all"
+            >
+              👤
+            </button>
 
-        {/* LOGIN ICON */}
-        <Link href="/login" className="flex items-center gap-2 hover:text-[#f5482b] transition-colors group">
-          <div className="hidden md:block font-bold text-sm uppercase tracking-wide text-gray-600 group-hover:text-[#f5482b]">Login / Register</div>
-          {/* SVG User Profile Icon */}
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-black group-hover:text-[#f5482b] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </Link>
-
+            {showDropdown && (
+              <div className="absolute right-0 mt-3 w-48 bg-white rounded-xl shadow-2xl py-2 border border-gray-100 text-left overflow-hidden">
+                <Link 
+                  href="/profile" 
+                  onClick={() => setShowDropdown(false)}
+                  className="block px-5 py-3 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-[#f5482b]"
+                >
+                  View Profile
+                </Link>
+                <Link 
+                  href="/bookings" 
+                  onClick={() => setShowDropdown(false)}
+                  className="block px-5 py-3 text-sm font-bold text-gray-700 hover:bg-red-50 hover:text-[#f5482b]"
+                >
+                  View Bookings
+                </Link>
+                <div className="h-[1px] bg-gray-100 my-1"></div>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full text-left px-5 py-3 text-sm font-black text-red-600 hover:bg-red-50"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </nav>
   );

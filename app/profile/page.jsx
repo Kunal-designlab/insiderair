@@ -1,0 +1,237 @@
+"use client";
+import { useState, useEffect } from "react";
+
+const COUNTRY_CODES = [
+  { code: "+1", country: "US/CA" },
+  { code: "+44", country: "UK" },
+  { code: "+91", country: "IN" },
+  { code: "+61", country: "AU" },
+  { code: "+65", country: "SG" },
+  { code: "+63", country: "PH" },
+];
+
+export default function ProfilePage() {
+  const [user, setUser] = useState({
+    name: "Alex Flyer",
+    email: "alex@insiderair.com",
+    phone: "",
+    countryCode: "+1",
+    tier: "Normal Flying Bird"
+  });
+
+  // Load from local storage on mount
+  useEffect(() => {
+    const savedUser = localStorage.getItem("insiderUser");
+    if (savedUser) setUser(JSON.parse(savedUser));
+  }, []);
+
+  // Save to local storage when user changes
+  useEffect(() => {
+    localStorage.setItem("insiderUser", JSON.stringify(user));
+  }, [user]);
+
+  // Form States
+  const [emailForm, setEmailForm] = useState({ old: "", new: "" });
+  const [phoneForm, setPhoneForm] = useState({ old: "", code: "+1", new: "" });
+
+  const handleEmailUpdate = (e) => {
+    e.preventDefault();
+    if (emailForm.old !== user.email) {
+      alert("Old email does not match our records!");
+      return;
+    }
+    if (!emailForm.new) return alert("Please enter a new email.");
+    
+    setUser({ ...user, email: emailForm.new });
+    setEmailForm({ old: "", new: "" });
+    alert("Email updated successfully!");
+    
+    // GTM Push
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: "profile_updated", update_type: "email" });
+  };
+
+  const handlePhoneUpdate = (e) => {
+    e.preventDefault();
+    // If they have an existing phone, mandate the old one matches
+    if (user.phone && phoneForm.old !== user.phone) {
+      alert("Old phone number does not match our records!");
+      return;
+    }
+    if (!phoneForm.new) return alert("Please enter a new phone number.");
+
+    setUser({ ...user, phone: phoneForm.new, countryCode: phoneForm.code });
+    setPhoneForm({ old: "", code: "+1", new: "" });
+    alert("Phone number updated successfully!");
+
+    // GTM Push
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({ event: "profile_updated", update_type: "phone" });
+  };
+
+  const handleUpgrade = (newTier, price) => {
+    const confirmMsg = `Upgrade to ${newTier} for $${price}?`;
+    if (confirm(confirmMsg)) {
+      setUser({ ...user, tier: newTier });
+      alert(`Congratulations! You are now a ${newTier}! 🦅`);
+      
+      // GTM Push for revenue
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "membership_upgraded",
+        tier: newTier,
+        value: price,
+        currency: "USD"
+      });
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
+      <div className="max-w-5xl mx-auto">
+        <h1 className="text-3xl md:text-4xl font-black text-black mb-8">My Profile</h1>
+
+        <div className="flex flex-col lg:flex-row gap-8">
+          
+          {/* LEFT COLUMN: PERSONAL INFO & UPDATES */}
+          <div className="w-full lg:w-1/2 flex flex-col gap-6">
+            
+            {/* Display Info */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-4 text-[#f5482b]">Personal Details</h2>
+              <div className="flex flex-col gap-4 text-sm">
+                <div>
+                  <span className="font-bold text-gray-400 uppercase text-xs block mb-1">Full Name</span>
+                  <span className="font-black text-lg text-black">{user.name}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-gray-400 uppercase text-xs block mb-1">Email Address</span>
+                  <span className="font-bold text-gray-800">{user.email}</span>
+                </div>
+                <div>
+                  <span className="font-bold text-gray-400 uppercase text-xs block mb-1">Mobile Number</span>
+                  <span className="font-bold text-gray-800">
+                    {user.phone ? `${user.countryCode} ${user.phone}` : "Not Added"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Update Email Form */}
+            <form onSubmit={handleEmailUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-black text-lg mb-4 text-black">Update Email</h3>
+              <div className="flex flex-col gap-3">
+                <input 
+                  type="email" placeholder="Old Email Address" required
+                  value={emailForm.old} onChange={e => setEmailForm({...emailForm, old: e.target.value})}
+                  className="w-full p-3 rounded-lg border-2 border-gray-100 focus:outline-none focus:border-[#f5482b] font-medium text-sm"
+                />
+                <input 
+                  type="email" placeholder="New Email Address" required
+                  value={emailForm.new} onChange={e => setEmailForm({...emailForm, new: e.target.value})}
+                  className="w-full p-3 rounded-lg border-2 border-gray-100 focus:outline-none focus:border-[#f5482b] font-medium text-sm"
+                />
+                <button type="submit" className="bg-black hover:bg-gray-800 text-white font-black py-3 rounded-lg mt-2 transition-colors">
+                  Save New Email
+                </button>
+              </div>
+            </form>
+
+            {/* Update Phone Form */}
+            <form onSubmit={handlePhoneUpdate} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="font-black text-lg mb-4 text-black">{user.phone ? "Update" : "Add"} Mobile Number</h3>
+              <div className="flex flex-col gap-3">
+                {user.phone && (
+                  <input 
+                    type="tel" placeholder="Old Mobile Number" required
+                    value={phoneForm.old} onChange={e => setPhoneForm({...phoneForm, old: e.target.value})}
+                    className="w-full p-3 rounded-lg border-2 border-gray-100 focus:outline-none focus:border-[#f5482b] font-medium text-sm"
+                  />
+                )}
+                <div className="flex gap-2">
+                  <select 
+                    value={phoneForm.code} onChange={e => setPhoneForm({...phoneForm, code: e.target.value})}
+                    className="p-3 rounded-lg border-2 border-gray-100 focus:outline-none focus:border-[#f5482b] font-bold text-sm bg-white"
+                  >
+                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.code} ({c.country})</option>)}
+                  </select>
+                  <input 
+                    type="tel" placeholder="New Mobile Number" required
+                    value={phoneForm.new} onChange={e => setPhoneForm({...phoneForm, new: e.target.value})}
+                    className="flex-1 p-3 rounded-lg border-2 border-gray-100 focus:outline-none focus:border-[#f5482b] font-medium text-sm"
+                  />
+                </div>
+                <button type="submit" className="bg-black hover:bg-gray-800 text-white font-black py-3 rounded-lg mt-2 transition-colors">
+                  Save New Phone
+                </button>
+              </div>
+            </form>
+
+          </div>
+
+          {/* RIGHT COLUMN: MEMBERSHIP STATUS */}
+          <div className="w-full lg:w-1/2 flex flex-col gap-6">
+            
+            <div className="bg-black text-white p-8 rounded-xl shadow-xl flex flex-col justify-center relative overflow-hidden">
+              <div className="absolute -right-10 -top-10 opacity-10 text-9xl">🦅</div>
+              <span className="font-bold text-gray-400 uppercase text-xs tracking-widest mb-2">Current Status</span>
+              <h2 className="text-3xl font-black text-[#f5482b]">{user.tier}</h2>
+              <p className="mt-2 text-sm font-medium text-gray-300">
+                {user.tier === "Normal Flying Bird" && "Earning 2 miles per booking."}
+                {user.tier === "Long Flying Bird" && "Priority Check-in • 5 miles per booking."}
+                {user.tier === "Longest Flying Bird" && "Priority Check-in • Lounge Access • 10 miles per booking."}
+              </p>
+            </div>
+
+            <h3 className="font-black text-2xl text-black mt-4">Available Upgrades</h3>
+
+            {/* UPGRADE 1: Long Flying Bird */}
+            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h4 className="font-black text-xl text-black">Long Flying Bird</h4>
+                  <p className="text-sm font-bold text-gray-500 mt-1">Upgrade Fee: $50</p>
+                </div>
+              </div>
+              <ul className="text-sm font-medium text-gray-700 mb-6 flex flex-col gap-2">
+                <li>✨ Priority Check-in always</li>
+                <li>✨ Earn 5 miles per booking</li>
+              </ul>
+              <button 
+                disabled={user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird"}
+                onClick={() => handleUpgrade("Long Flying Bird", 50)}
+                className="w-full py-3 rounded-lg font-black bg-[#f5482b] text-white disabled:bg-gray-200 disabled:text-gray-400"
+              >
+                {user.tier === "Long Flying Bird" || user.tier === "Longest Flying Bird" ? "Unlocked" : "Upgrade Now"}
+              </button>
+            </div>
+
+            {/* UPGRADE 2: Longest Flying Bird */}
+            <div className={`p-6 rounded-xl border-2 transition-all ${user.tier === "Longest Flying Bird" ? 'opacity-50 border-gray-200 bg-gray-50' : 'border-[#f5482b] bg-white shadow-md hover:scale-[1.02]'}`}>
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h4 className="font-black text-xl text-black">Longest Flying Bird</h4>
+                  <p className="text-sm font-bold text-gray-500 mt-1">Upgrade Fee: $100</p>
+                </div>
+              </div>
+              <ul className="text-sm font-medium text-gray-700 mb-6 flex flex-col gap-2">
+                <li>👑 Priority Check-in always</li>
+                <li>👑 Premium Free Access Lounge Card</li>
+                <li>👑 Earn 10 miles per flight</li>
+              </ul>
+              <button 
+                disabled={user.tier === "Longest Flying Bird"}
+                onClick={() => handleUpgrade("Longest Flying Bird", 100)}
+                className="w-full py-3 rounded-lg font-black bg-black text-white disabled:bg-gray-200 disabled:text-gray-400 hover:bg-gray-800"
+              >
+                {user.tier === "Longest Flying Bird" ? "Max Level Reached" : "Upgrade Now"}
+              </button>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+  );
+}
