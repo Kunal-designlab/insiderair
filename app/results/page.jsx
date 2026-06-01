@@ -418,6 +418,28 @@ function ResultsContent() {
       console.log("Fired GTM Product Page View:", legRouteString, "| RFC Date:", rfcDate);
     }
 
+    // --- NEW: Add Flight to Cart Event ---
+  window.dataLayer.push({
+  event: "item_added_to_cart",
+  action_type: "add_to_cart",
+  
+  // Use the exact same variables you used for the product_page_view!
+  product_id: legRouteString,
+  name: legRouteString, 
+  taxonomy: [legRouteString],
+  
+  // Strip the $ sign and convert to number, just like we did earlier
+  price: parseFloat(flight.price.replace('$', '')),
+  sale_price: parseFloat(flight.price.replace('$', '')),
+  
+  quantity: 1, // Or your total passenger count if you have it available here
+  
+  image_url: "https://insiderair.vercel.app/destinations/tokyo.png", // Your fallback image
+  url: window.location.href
+});
+
+console.log("Fired GTM: item_added_to_cart (Flight Selected)");
+
     // Toggle the UI expansion
     if (isReturnLeg) {
       setExpandedReturn(isCurrentlyExpanded ? null : flight.id);
