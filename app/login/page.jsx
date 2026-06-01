@@ -2,43 +2,72 @@
 import { useState } from "react";
 import Link from "next/link";
 import { signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../firebase";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  
+  // NEW: State to manage the Success UI
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [userName, setUserName] = useState("");
 
-  // STANDARD EMAIL LOGIN
   const handleEmailLogin = async (e) => {
     e.preventDefault();
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      window.location.href = "/";
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const data = userDocSnap.data();
+        setUserName(data.name || "Flyer");
+
+        // FIRE GTM SAFELY
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "login",
+          email: user.email,
+          flyer_id: data.membershipId
+        });
+        console.log("Fired GTM: login", user.email);
+      }
+      
+      setIsSuccess(true); // Swap UI to the Success Screen
     } catch (error) {
       console.error("Login error:", error);
       alert("Invalid email or password.");
     }
   };
   
-  // GOOGLE LOGIN (With Redirect Interceptor)
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       
-      // Check if this Google user already exists in our database
       const userDocRef = doc(db, "users", user.uid);
       const userDocSnap = await getDoc(userDocRef);
 
-      // Intercept the flow!
       if (!userDocSnap.exists()) {
-        // They are brand new. Send them to complete their profile.
         window.location.href = "/complete-profile"; 
       } else {
-        // They already have a full profile. Send them to the homepage.
-        window.location.href = "/"; 
+        const data = userDocSnap.data();
+        setUserName(data.name || "Flyer");
+
+        // FIRE GTM SAFELY
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "login",
+          email: user.email,
+          flyer_id: data.membershipId
+        });
+        console.log("Fired GTM: login (Google)", user.email);
+
+        setIsSuccess(true); // Swap UI to the Success Screen
       }
       
     } catch (error) {
@@ -47,6 +76,26 @@ export default function Login() {
     }
   };
 
+  // --- THE SUCCESS SCREEN ---
+  if (isSuccess) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 w-full max-w-md -mt-20 text-center animate-fade-in">
+          <div className="text-6xl mb-6">✈️</div>
+          <h1 className="text-3xl font-black text-black mb-2">Welcome Back, {userName.split(' ')[0]}!</h1>
+          <p className="text-gray-500 font-bold text-sm mb-8 uppercase tracking-wide">You are securely logged in.</p>
+          
+          <Link href="/">
+            <button className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-lg text-lg transition-colors shadow-lg active:scale-95">
+              Book your Flights ➔
+            </button>
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // --- THE LOGIN FORM ---
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 w-full max-w-md -mt-20">

@@ -11,13 +11,12 @@ const COUNTRIES = [
 
 export default function Register() {
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    nationality: "",
-    birthdate: "",
-    gender: "",
-    password: "",
+    name: "", email: "", nationality: "", birthdate: "", gender: "", password: "",
   });
+  
+  // NEW: State for the Success UI
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [generatedId, setGeneratedId] = useState("");
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -32,15 +31,13 @@ export default function Register() {
     }
 
     try {
-      // 1. Create the user securely in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
 
-      // 2. Generate the unique Membership ID
       const randomDigits = Math.floor(100000 + Math.random() * 900000);
       const membershipId = `IA-${randomDigits}`;
+      setGeneratedId(membershipId);
 
-      // 3. Save the full profile to Firestore Database
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         name: formData.name,
@@ -49,11 +46,20 @@ export default function Register() {
         birthdate: formData.birthdate,
         gender: formData.gender,
         membershipId: membershipId,
+        tier: "Swift Tier", 
         createdAt: new Date().toISOString()
       });
 
-      alert(`Account created!\nWelcome to the club, your Membership ID is: ${membershipId}`);
-      window.location.href = "/"; 
+      // FIRE GTM SAFELY
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "login", 
+        email: user.email,
+        flyer_id: membershipId
+      });
+      console.log("Fired GTM: login (New Account)", user.email);
+
+      setIsSuccess(true); // Swap UI to the Success Screen
       
     } catch (error) {
       console.error("Error registering:", error);
@@ -61,6 +67,31 @@ export default function Register() {
     }
   };
 
+  // --- THE SUCCESS SCREEN ---
+  if (isSuccess) {
+    return (
+      <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 w-full max-w-md text-center animate-fade-in">
+          <div className="text-6xl mb-4">🎉</div>
+          <h1 className="text-3xl font-black text-black mb-2">Welcome to the Club!</h1>
+          <p className="text-gray-500 font-bold text-sm mb-6 uppercase tracking-wide">Your Insider Account is ready.</p>
+          
+          <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-200 mb-8">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2">Your Flyer ID</div>
+            <div className="text-3xl font-black text-[#f5482b] tracking-wider">{generatedId}</div>
+          </div>
+
+          <Link href="/">
+            <button className="w-full bg-black hover:bg-gray-800 text-white font-black py-4 rounded-lg text-lg transition-colors shadow-lg active:scale-95">
+              Book your Flights ➔
+            </button>
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  // --- THE REGISTRATION FORM ---
   return (
     <main className="min-h-screen bg-gray-50 flex items-center justify-center p-4 py-12">
       <div className="bg-white p-8 rounded-xl shadow-2xl border border-gray-100 w-full max-w-md">
