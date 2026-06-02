@@ -8,7 +8,8 @@ import { doc, getDoc } from "firebase/firestore";
 function SuccessContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [flyerId, setFlyerId] = useState("Guest_Account");
+  const [authLoaded, setAuthLoaded] = useState(false);
   const [txnId, setTxnId] = useState("");
   const hasFiredPurchase = useRef(false);
 
@@ -26,167 +27,68 @@ function SuccessContent() {
     insurance: false
   });
 
+  // 1. STAGE A: Read cache objects into memory instantly before touching storage
   useEffect(() => {
-    // 1. Generate unique transactional string
-    const generatedTxnId = `TXN-${Math.floor(100000 + Math.random() * 900000)}`;
-    setTxnId(generatedTxnId);
+    setTxnId(`TXN-${Math.floor(100000 + Math.random() * 900000)}`);
 
-    // 2. Read caches into in-memory states before clearing browser cache
-    const outboundData = localStorage.getItem("selectedOutboundFlight");
-    const returnData = localStorage.getItem("selectedReturnFlight");
-    
-    let mealsArr = [];
-    let baggageArr = [];
-    let seatsArr = [];
-    let insuranceBool = false;
+    try {
+      const outboundData = localStorage.getItem("selectedOutboundFlight");
+      const returnData = localStorage.getItem("selectedReturnFlight");
+      
+      let mealsArr = [];
+      let baggageArr = [];
+      let seatsArr = [];
+      let insuranceBool = false;
 
-    const combinedAddons = localStorage.getItem("selectedAddons");
-    if (combinedAddons) {
-      const parsedAddons = JSON.parse(combinedAddons);
-      mealsArr = parsedAddons.meals || [];
-      baggageArr = parsedAddons.baggage || [];
-      seatsArr = parsedAddons.seats || [];
-      insuranceBool = parsedAddons.insurance || false;
-    } else {
-      mealsArr = JSON.parse(localStorage.getItem("selectedMeals")) || [];
-      baggageArr = JSON.parse(localStorage.getItem("selectedBaggage")) || [];
-      seatsArr = JSON.parse(localStorage.getItem("selectedSeats")) || [];
-      insuranceBool = localStorage.getItem("selectedInsurance") === "true";
+      const combinedAddons = localStorage.getItem("selectedAddons");
+      if (combinedAddons) {
+        const parsedAddons = JSON.parse(combinedAddons);
+        mealsArr = parsedAddons.meals || [];
+        baggageArr = parsedAddons.baggage || [];
+        seatsArr = parsedAddons.seats || [];
+        insuranceBool = parsedAddons.insurance || false;
+      } else {
+        mealsArr = JSON.parse(localStorage.getItem("selectedMeals")) || [];
+        baggageArr = JSON.parse(localStorage.getItem("selectedBaggage")) || [];
+        seatsArr = JSON.parse(localStorage.getItem("selectedSeats")) || [];
+        insuranceBool = localStorage.getItem("selectedInsurance") === "true";
+      }
+
+      setConfirmedItinerary({
+        outboundFlight: outboundData ? JSON.parse(outboundData) : null,
+        returnFlight: returnData ? JSON.parse(returnData) : null,
+        meals: mealsArr,
+        baggage: baggageArr,
+        seats: seatsArr,
+        insurance: insuranceBool
+      });
+    } catch (error) {
+      console.error("Failed to parse localized session arrays on initialization:", error);
     }
+  }, [searchParams]);
 
-    const loadedItinerary = {
-      outboundFlight: outboundData ? JSON.parse(outboundData) : null,
-      returnFlight: returnData ? JSON.parse(returnData) : null,
-      meals: mealsArr,
-      baggage: baggageArr,
-      seats: seatsArr,
-      insurance: insuranceBool
-    };
-
-    setConfirmedItinerary(loadedItinerary);
-    setLoading(false);
-
-    // 3. Clear session buffers so duplication artifacts cannot occur
-    localStorage.removeItem("selectedOutboundFlight");
-    localStorage.removeItem("selectedReturnFlight");
-    localStorage.removeItem("selectedAddons");
-    localStorage.removeItem("selectedMeals");
-    localStorage.removeItem("selectedBaggage");
-    localStorage.removeItem("selectedSeats");
-    localStorage.removeItem("selectedInsurance");
-
-    // 4. Trace profiles and fire official e-commerce conversion triggers
+  // 2. STAGE B: Track down Firebase Session records asynchronously
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser && !hasFiredPurchase.current && loadedItinerary.outboundFlight) {
+      if (currentUser) {
         setUser(currentUser);
-        let membershipId = "Guest_Account";
-
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
           const userDocSnap = await getDoc(userDocRef);
           if (userDocSnap.exists()) {
-            membershipId = userDocSnap.data().membershipId || "Guest_Account";
+            setFlyerId(userDocSnap.data().membershipId || "Guest_Account");
           }
         } catch (err) {
-          console.error("Firestore read fault during purchase attribution:", err);
+          console.error("Firestore loading error:", err);
         }
-
-        // Run cost parameters calculations
-        const cleanPrice = (val) => {
-          if (!val) return 0;
-          return typeof val === "number" ? val : parseFloat(val.replace(/[^0-9.]/g, ""));
-        };
-
-        const outboundTotalCost = loadedItinerary.outboundFlight ? cleanPrice(loadedItinerary.outboundFlight.price) * totalSeatsRequired : 0;
-        const returnTotalCost = loadedItinerary.returnFlight ? cleanPrice(loadedItinerary.returnFlight.price) * totalSeatsRequired : 0;
-        const mealsTotalCost = loadedItinerary.meals.reduce((acc, m) => acc + cleanPrice(m.price), 0);
-        const baggageTotalCost = loadedItinerary.baggage.reduce((acc, b) => acc + cleanPrice(b.price), 0);
-        const seatsTotalCost = loadedItinerary.seats.reduce((acc, s) => acc + cleanPrice(s.price), 0);
-        const insuranceTotalCost = loadedItinerary.insurance ? 29 : 0;
-        const totalValueAmount = outboundTotalCost + returnTotalCost + mealsTotalCost + baggageTotalCost + seatsTotalCost + insuranceTotalCost;
-
-        const purchaseItems = [];
-
-        if (loadedItinerary.outboundFlight) {
-          purchaseItems.push({
-            product_id: `${loadedItinerary.outboundFlight.originCode}-${loadedItinerary.outboundFlight.destCode}-OUT`,
-            name: `Outbound Flight: ${loadedItinerary.outboundFlight.flightNo}`,
-            taxonomy: ["Flights", "Outbound"],
-            price: cleanPrice(loadedItinerary.outboundFlight.price),
-            quantity: totalSeatsRequired
-          });
-        }
-
-        if (loadedItinerary.returnFlight) {
-          purchaseItems.push({
-            product_id: `${loadedItinerary.returnFlight.originCode}-${loadedItinerary.returnFlight.destCode}-RET`,
-            name: `Return Flight: ${loadedItinerary.returnFlight.flightNo}`,
-            taxonomy: ["Flights", "Return"],
-            price: cleanPrice(loadedItinerary.returnFlight.price),
-            quantity: totalSeatsRequired
-          });
-        }
-
-        loadedItinerary.seats.forEach((seat) => {
-          purchaseItems.push({
-            product_id: `SEAT-${seat.number || seat}`,
-            name: `Seat Assignment: ${seat.number || seat}`,
-            taxonomy: ["Ancillaries", "Seats"],
-            price: cleanPrice(seat.price) || 10,
-            quantity: 1
-          });
-        });
-
-        loadedItinerary.baggage.forEach((bag, idx) => {
-          purchaseItems.push({
-            product_id: `BAG-${idx}`,
-            name: bag.name || "Checked Baggage",
-            taxonomy: ["Ancillaries", "Baggage"],
-            price: cleanPrice(bag.price),
-            quantity: 1
-          });
-        });
-
-        loadedItinerary.meals.forEach((meal, idx) => {
-          purchaseItems.push({
-            product_id: `MEAL-${idx}`,
-            name: meal.name || "Inflight Meal Selection",
-            taxonomy: ["Ancillaries", "Meals"],
-            price: cleanPrice(meal.price),
-            quantity: 1
-          });
-        });
-
-        if (loadedItinerary.insurance) {
-          purchaseItems.push({
-            product_id: "INS-TRAVEL",
-            name: "Flight Protection Plan",
-            taxonomy: ["Ancillaries", "Insurance"],
-            price: 29,
-            quantity: 1
-          });
-        }
-
-        // --- THE OFFICIAL DATALAYER PURCHASE EVENT DEPLOYMENT ---
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: "purchase",
-          transaction_id: generatedTxId,
-          value: totalValueAmount, // Included total cart amount parameter here
-          currency: "USD",
-          email: currentUser.email,
-          flyer_id: membershipId,
-          items: purchaseItems
-        });
-
-        console.log("Fired GTM: purchase event cleanly executed:", generatedTxId, totalValueAmount);
-        hasFiredPurchase.current = true;
       }
+      setAuthLoaded(true); // Signifies authentication data streams are complete
     });
 
     return () => unsubscribe();
-  }, [searchParams, totalSeatsRequired]);
+  }, []);
 
+  // Price mathematical cleaners
   const parseNumPrice = (v) => {
     if (!v) return 0;
     return typeof v === "number" ? v : parseFloat(v.replace(/[^0-9.]/g, ""));
@@ -201,15 +103,115 @@ function SuccessContent() {
 
   const summaryGrandTotal = outboundPrice + returnPrice + mealsPrice + baggagePrice + seatsPrice + insurancePrice;
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center font-black text-2xl text-gray-400">Processing Success Records...</div>;
+  // 3. STAGE C: Fire DataLayer Purchase Event safely once data streams align
+  useEffect(() => {
+    if (authLoaded && confirmedItinerary.outboundFlight && !hasFiredPurchase.current && txnId) {
+      const purchaseItems = [];
+
+      if (confirmedItinerary.outboundFlight) {
+        purchaseItems.push({
+          product_id: `${confirmedItinerary.outboundFlight.originCode}-${confirmedItinerary.outboundFlight.destCode}-OUT`,
+          name: `Outbound Flight: ${confirmedItinerary.outboundFlight.flightNo}`,
+          taxonomy: ["Flights", "Outbound"],
+          price: parseNumPrice(confirmedItinerary.outboundFlight.price),
+          quantity: totalSeatsRequired
+        });
+      }
+
+      if (confirmedItinerary.returnFlight) {
+        purchaseItems.push({
+          product_id: `${confirmedItinerary.returnFlight.originCode}-${confirmedItinerary.returnFlight.destCode}-RET`,
+          name: `Return Flight: ${confirmedItinerary.returnFlight.flightNo}`,
+          taxonomy: ["Flights", "Return"],
+          price: parseNumPrice(confirmedItinerary.returnFlight.price),
+          quantity: totalSeatsRequired
+        });
+      }
+
+      confirmedItinerary.seats.forEach((seat) => {
+        purchaseItems.push({
+          product_id: `SEAT-${seat.number || seat}`,
+          name: `Seat Assignment: ${seat.number || seat}`,
+          taxonomy: ["Ancillaries", "Seats"],
+          price: parseNumPrice(seat.price) || 10,
+          quantity: 1
+        });
+      });
+
+      confirmedItinerary.baggage.forEach((bag, idx) => {
+        purchaseItems.push({
+          product_id: `BAG-${idx}`,
+          name: bag.name || "Checked Baggage",
+          taxonomy: ["Ancillaries", "Baggage"],
+          price: parseNumPrice(bag.price),
+          quantity: 1
+        });
+      });
+
+      confirmedItinerary.meals.forEach((meal, idx) => {
+        purchaseItems.push({
+          product_id: `MEAL-${idx}`,
+          name: meal.name || "Inflight Meal Selection",
+          taxonomy: ["Ancillaries", "Meals"],
+          price: parseNumPrice(meal.price),
+          quantity: 1
+        });
+      });
+
+      if (confirmedItinerary.insurance) {
+        purchaseItems.push({
+          product_id: "INS-TRAVEL",
+          name: "Flight Protection Plan",
+          taxonomy: ["Ancillaries", "Insurance"],
+          price: 29,
+          quantity: 1
+        });
+      }
+
+      // --- EXECUTE DATALAYER PUSH TRIGGER WITH GRAND TOTAL VALUE ---
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "purchase",
+        transaction_id: txnId,
+        value: summaryGrandTotal, // Dynamic cart total valuation explicitly mapped
+        currency: "USD",
+        email: user?.email || "anonymous-flyer@insiderair.com",
+        flyer_id: flyerId,
+        items: purchaseItems
+      });
+
+      console.log("Fired GTM: purchase event dropped successfully:", txnId, summaryGrandTotal);
+      hasFiredPurchase.current = true;
+
+      // 4. STAGE D: Wipe local caches now that GTM tracking has executed
+      localStorage.removeItem("selectedOutboundFlight");
+      localStorage.removeItem("selectedReturnFlight");
+      localStorage.removeItem("selectedAddons");
+      localStorage.removeItem("selectedMeals");
+      localStorage.removeItem("selectedBaggage");
+      localStorage.removeItem("selectedSeats");
+      localStorage.removeItem("selectedInsurance");
+    }
+  }, [authLoaded, confirmedItinerary, txnId, user, flyerId, summaryGrandTotal, totalSeatsRequired]);
+
+  if (authLoaded && !confirmedItinerary.outboundFlight) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-xl shadow-md p-8 border-2 border-dashed border-gray-200 text-center max-w-md">
+          <div className="text-5xl mb-4">🎟️</div>
+          <h2 className="text-xl font-black text-black mb-2">No Confirmation Session Found</h2>
+          <p className="text-gray-500 text-sm mb-6">This receipt desk is empty because it either already completed processing or could not load active cache configurations.</p>
+          <a href="/" className="inline-block bg-black text-white font-black px-6 py-3 rounded-lg text-sm uppercase transition-transform active:scale-95">Go To Search Engine</a>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-3xl mx-auto">
         
-        {/* Success Branding Hero block */}
+        {/* Header Block */}
         <div className="text-center mb-10">
           <div className="text-7xl mb-4">🎉</div>
           <h1 className="text-4xl font-black text-black mb-2">Booking Confirmed!</h1>
@@ -219,10 +221,10 @@ function SuccessContent() {
           </div>
         </div>
 
-        {/* Replicated high-fidelity summary grid layout */}
+        {/* Dynamic Details Presentation */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           <div className="bg-black text-white p-4 px-6 flex justify-between items-center text-xs font-black tracking-wide uppercase">
-            <div>Confirmed PassengerManifest</div>
+            <div>Confirmed Passenger Manifest</div>
             <div className="text-[#f5482b]">
               {adults} Adult{adults > 1 && "s"}
               {children > 0 && ` • ${children} Child${children > 1 ? "ren" : ""}`}
@@ -231,7 +233,7 @@ function SuccessContent() {
           </div>
 
           <div className="p-6 md:p-8 flex flex-col gap-6">
-            {/* Outbound */}
+            {/* Outbound Leg */}
             {confirmedItinerary.outboundFlight && (
               <div className="border-b border-gray-100 pb-4">
                 <div className="text-xs font-black text-green-600 uppercase tracking-wider mb-2">✓ Confirmed Outbound</div>
@@ -245,7 +247,7 @@ function SuccessContent() {
               </div>
             )}
 
-            {/* Return */}
+            {/* Return Leg */}
             {confirmedItinerary.returnFlight && (
               <div className="border-b border-gray-100 pb-4">
                 <div className="text-xs font-black text-green-600 uppercase tracking-wider mb-2">✓ Confirmed Return</div>
@@ -259,7 +261,7 @@ function SuccessContent() {
               </div>
             )}
 
-            {/* Ancillaries Add-ons */}
+            {/* Ancillaries Allocation Summary */}
             {(mealsPrice > 0 || baggagePrice > 0 || seatsPrice > 0 || confirmedItinerary.insurance) && (
               <div className="border-b border-gray-100 pb-4">
                 <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Allocated Add-ons & Services</div>
@@ -280,7 +282,7 @@ function SuccessContent() {
               </div>
             )}
 
-            {/* Price Calculations Summary panels */}
+            {/* Calculations Breakdown */}
             <div className="bg-gray-50 p-5 rounded-xl border border-gray-100 flex flex-col gap-2 text-sm font-bold text-gray-500 mt-2">
               <div className="flex justify-between"><span>Airfare Ledger Base</span><span className="text-gray-900">${(outboundPrice + returnPrice).toFixed(2)}</span></div>
               <div className="flex justify-between"><span>Ancillaries Ledger Subtotal</span><span className="text-gray-900">${(mealsPrice + baggagePrice + seatsPrice + insurancePrice).toFixed(2)}</span></div>
