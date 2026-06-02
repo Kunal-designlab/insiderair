@@ -161,7 +161,7 @@ const PassengerDropdown = ({ adults, setAdults, childrenCount, setChildrenCount,
   );
 };
 
-// 4. DUMMY DATA 
+// 4. FLIGHTS DATABASE
 const DUMMY_FLIGHTS = [
   { id: 1, airline: "Insider Air", flightNo: "IA-101", depTime: "04:30", arrTime: "08:30", price: "$250", type: "Direct", meals: true, baggage: "7kg Cabin, 20kg Check-in" },
   { id: 2, airline: "Partner Air", flightNo: "PA-205", depTime: "10:15", arrTime: "19:00", price: "$180", type: "Hop Flight", meals: false, baggage: "7kg Cabin", layover: "2h 00m", layoverCity: "Bangkok (BKK)", segments: [{ flightNo: "PA-205", depTime: "10:15", arrTime: "15:00" }, { flightNo: "PA-206", depTime: "17:00", arrTime: "19:00" }] },
@@ -172,7 +172,7 @@ const DUMMY_FLIGHTS = [
 const TIME_SLOTS = ["00:00 - 06:00", "06:01 - 12:00", "12:01 - 18:00", "18:01 - 23:59"];
 const STOP_TYPES = ["Direct", "Hop Flight"];
 
-// 5. REUSABLE FLIGHT CARD COMPONENT
+// 5. FLIGHT CARD COMPONENT
 const FlightCard = ({ flight, isExpanded, onExpand, originCode, destCode, continueText, onContinue }) => {
   return (
     <div className={`bg-white rounded-xl shadow-md border overflow-hidden transition-all ${isExpanded ? 'border-[#f5482b]' : 'border-gray-100 hover:border-[#f5482b]'}`}>
@@ -305,28 +305,25 @@ function ResultsContent() {
     if (dep) setDepartureDate(dep);
     if (ret) setReturnDate(ret);
     
-    // Setup States & DataLayer Push
     const foundFrom = AIRPORTS.find(a => a.code === fromCode);
     const foundTo = AIRPORTS.find(a => a.code === toCode);
     
     if (foundFrom) setFromAirport(foundFrom);
     if (foundTo) setToAirport(foundTo);
 
-    // --- DATALAYER: Category Page View Event ---
     if (foundFrom && foundTo) {
       const flightType = type === "return" ? "RT" : "OW";
       const routeString = flightType === "RT" 
         ? `${foundFrom.code}-${foundTo.code}-${foundTo.code}-${foundFrom.code}` 
         : `${foundFrom.code}-${foundTo.code}`;
 
-      // Create human readable and RFC dates from the URL 'dep' param
       let humanDate = "";
       let rfcDate = "";
       if (dep) {
         const [y, m, d] = dep.split('-');
         const dateObj = new Date(Date.UTC(y, m - 1, d));
         humanDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
-        rfcDate = `${dep}T00:00:00Z`; // Defaulting to midnight for the general search
+        rfcDate = `${dep}T00:00:00Z`;
       }
 
       window.dataLayer = window.dataLayer || [];
@@ -369,17 +366,14 @@ function ResultsContent() {
     return matchesStops && matchesTime;
   });
 
-  // --- NEW: DATALAYER PRODUCT PAGE VIEW EVENT ON SELECTION ---
   const handleExpandFlight = (flight, isReturnLeg) => {
     const isCurrentlyExpanded = isReturnLeg ? (expandedReturn === flight.id) : (expandedOutbound === flight.id);
 
-    // 1. Define these OUTSIDE the if-block so both Add and Remove tracking can see them
     const originObj = isReturnLeg ? toAirport : fromAirport;
     const destObj = isReturnLeg ? fromAirport : toAirport;
     const legRouteString = `${originObj.code}-${destObj.code}`;
     const parsedPrice = parseFloat(flight.price.replace('$', ''));
 
-    // 2. If we are OPENING/SELECTING the flight
     if (!isCurrentlyExpanded) {
       const flightDateStr = isReturnLeg ? returnDate : departureDate;
       const flightType = tripType === "return" ? "RT" : "OW";
@@ -398,7 +392,6 @@ function ResultsContent() {
 
       window.dataLayer = window.dataLayer || [];
       
-      // A. PRODUCT PAGE VIEW
       window.dataLayer.push({
         event: "product_page_view",
         destination_iata: destObj.code,
@@ -413,7 +406,6 @@ function ResultsContent() {
         departure_date_rfc: rfcDate
       });
 
-      // B. ADD TO CART
       window.dataLayer.push({
         event: "item_added_to_cart",
         action_type: "add_to_cart",
@@ -429,7 +421,6 @@ function ResultsContent() {
 
       console.log("Fired GTM: Product View & Add to Cart", legRouteString);
     } 
-    // 3. If we are CLOSING/DESELECTING the flight
     else {
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
@@ -448,7 +439,6 @@ function ResultsContent() {
       console.log("Fired GTM: item_removed_from_cart", legRouteString);
     }
 
-    // 4. Toggle the UI expansion safely
     if (isReturnLeg) {
       setExpandedReturn(isCurrentlyExpanded ? null : flight.id);
     } else {
@@ -456,11 +446,30 @@ function ResultsContent() {
     }
   };
 
+  // --- UPDATED: PUSHING REAL FLIGHT SELECTIONS TO LOCALSTORAGE ---
   const handleCheckout = () => {
     if (tripType === "return" && (!expandedOutbound || !expandedReturn)) {
       alert("Almost there! Please make sure you have selected BOTH an Outbound and a Return flight.");
       return;
     }
+
+    const outboundFlightObj = DUMMY_FLIGHTS.find(f => f.id === expandedOutbound);
+    const returnFlightObj = tripType === "return" ? DUMMY_FLIGHTS.find(f => f.id === expandedReturn) : null;
+
+    if (outboundFlightObj) {
+      outboundFlightObj.originCode = fromAirport?.code || "DEL";
+      outboundFlightObj.destCode = toAirport?.code || "SIN";
+      localStorage.setItem("selectedOutboundFlight", JSON.stringify(outboundFlightObj));
+    }
+    
+    if (returnFlightObj) {
+      returnFlightObj.originCode = toAirport?.code || "SIN";
+      returnFlightObj.destCode = fromAirport?.code || "DEL";
+      localStorage.setItem("selectedReturnFlight", JSON.stringify(returnFlightObj));
+    } else {
+      localStorage.removeItem("selectedReturnFlight");
+    }
+
     const queryParams = new URLSearchParams({ adults, children: childrenCount, infants }).toString();
     window.location.href = `/passenger-details?${queryParams}`;
   };
@@ -477,7 +486,6 @@ function ResultsContent() {
 
   return (
     <>
-      {/* TOP SEARCH ENGINE BAR */}
       <div className="bg-white border-b border-gray-200 shadow-sm sticky top-[72px] z-40">
         <div className="max-w-6xl mx-auto p-4 md:p-5">
           <div className="flex gap-4 mb-4">
@@ -512,9 +520,7 @@ function ResultsContent() {
         </div>
       </div>
 
-      {/* CONDITIONAL RENDER: GATEKEEPER VS FLIGHTS */}
       {!passengersConfirmed ? (
-        
         <div className="max-w-2xl mx-auto mt-12 md:mt-20 px-4">
           <div className="bg-white p-8 md:p-12 rounded-2xl shadow-xl border border-gray-100 text-center">
             <h2 className="text-3xl md:text-4xl font-black text-black mb-2">Who is flying?</h2>
@@ -539,11 +545,8 @@ function ResultsContent() {
             </button>
           </div>
         </div>
-
       ) : (
-
         <div className="max-w-6xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-6 animate-fade-in">
-          
           <aside className="w-full md:w-1/4 bg-white p-5 rounded-xl shadow-md border border-gray-100 h-fit sticky top-[250px]">
             <h3 className="font-black text-lg mb-4 text-black border-b border-gray-200 pb-2">Filters</h3>
             <div className="mb-6">
@@ -567,7 +570,6 @@ function ResultsContent() {
           </aside>
 
           <section className="w-full md:w-3/4 flex flex-col gap-4">
-            
             <div className="mb-2">
               <h2 className="text-2xl font-black text-black">Outbound Flights</h2>
               <p className="text-gray-500 font-bold uppercase text-xs mt-1">
@@ -608,7 +610,6 @@ function ResultsContent() {
                 )}
               </div>
             )}
-
           </section>
         </div>
       )}
@@ -616,7 +617,6 @@ function ResultsContent() {
   );
 }
 
-// 7. MAIN PAGE EXPORT WRAPPED IN SUSPENSE
 export default function Results() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">

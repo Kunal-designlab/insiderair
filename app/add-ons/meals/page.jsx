@@ -2,8 +2,6 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 
-// --- MEAL & SNACK DATABASE ---
-// Custom .png image links preserved!
 const MENU = {
   veg: [
     { id: "v1", name: "Paneer Tikka Masala", desc: "Served with bread, rice and yogurt", price: 12, img: "/meals/paneer.png" },
@@ -33,7 +31,6 @@ const MENU = {
   ]
 };
 
-// --- GTM TAXONOMY MAPPING ---
 const TAXONOMY_MAP = {
   veg: "Vegetarian Meals",
   nonVeg: "Non-Veg Meals",
@@ -46,9 +43,7 @@ function MealsContent() {
   const [activeTab, setActiveTab] = useState("veg");
   const [cart, setCart] = useState({});
 
-  // Helper to handle cart quantity AND DataLayer Push
   const updateCart = (item, delta, category) => {
-    // 1. Update React State
     setCart(prev => {
       const currentQty = prev[item.id]?.quantity || 0;
       const newQty = Math.max(0, currentQty + delta);
@@ -65,17 +60,16 @@ function MealsContent() {
       };
     });
 
-    // 2. DataLayer Push for Add/Remove Cart
     const eventName = delta > 0 ? "item_added_to_cart" : "item_removed_from_cart";
     const actionType = delta > 0 ? "add_to_cart" : "remove_from_cart";
     const salePrice = Number((item.price * 0.85).toFixed(2));
-    const absQty = Math.abs(delta); // Always push '1' since they click the button once
+    const absQty = Math.abs(delta);
 
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: eventName,
       action_type: actionType,
-      product_id: item.name,     // Mapped to product_id so you can reuse your existing GTM variable!
+      product_id: item.name,     
       name: item.name,
       taxonomy: [TAXONOMY_MAP[category]],
       price: item.price,
@@ -88,18 +82,24 @@ function MealsContent() {
     console.log(`Fired GTM: ${eventName}`, item.name);
   };
 
-  // Calculate Totals
   const subtotal = Object.values(cart).reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const discount = subtotal > 0 ? subtotal * 0.15 : 0;
   const total = subtotal - discount;
 
+  // --- UPDATED: CONVERTING CART QUANTITIES AND FLUSHING TO STORAGE ---
   const handleNext = () => {
-    // Bundle the URL params and move to the Baggage page
+    const serializedMeals = Object.values(cart).flatMap(item => 
+      Array.from({ length: item.quantity }, () => ({
+        name: item.name,
+        price: `$${item.price}`
+      }))
+    );
+    
+    localStorage.setItem("selectedMeals", JSON.stringify(serializedMeals));
     alert("Meals saved to your booking!");
     window.location.href = `/add-ons/baggage?${searchParams.toString()}`;
   };
 
-  // Reusable component for the menu cards
   const MenuCard = ({ item, category }) => {
     const qty = cart[item.id]?.quantity || 0;
     
@@ -135,16 +135,12 @@ function MealsContent() {
 
   return (
     <div className="max-w-6xl mx-auto py-8 px-4 flex flex-col lg:flex-row gap-8">
-      
-      {/* LEFT COLUMN: MENU */}
       <div className="w-full lg:w-2/3">
-        
         <div className="mb-6">
           <h1 className="text-3xl md:text-4xl font-black text-black">In-Flight Dining</h1>
           <p className="text-gray-500 font-bold uppercase text-sm mt-1 tracking-wide">Select meals for your journey</p>
         </div>
 
-        {/* DISCOUNT BANNER */}
         <div className="bg-gradient-to-r from-[#f5482b] to-[#ff7e67] p-4 rounded-xl shadow-md text-white flex items-center justify-between mb-8">
           <div>
             <div className="font-black text-lg">✈️ Pre-order & Save 15%</div>
@@ -152,7 +148,6 @@ function MealsContent() {
           </div>
         </div>
 
-        {/* CATEGORY TABS */}
         <div className="flex overflow-x-auto gap-2 mb-6 pb-2 no-scrollbar border-b border-gray-200">
           {[
             { id: 'veg', label: 'Vegetarian Meals' },
@@ -160,35 +155,23 @@ function MealsContent() {
             { id: 'vegan', label: 'Vegan Meals' },
             { id: 'extras', label: 'Snacks & Beverages' }
           ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`whitespace-nowrap px-6 py-3 font-black text-sm rounded-t-lg transition-colors ${activeTab === tab.id ? 'bg-black text-white' : 'bg-transparent text-gray-500 hover:bg-gray-100'}`}
-            >
-              {tab.label}
-            </button>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`whitespace-nowrap px-6 py-3 font-black text-sm rounded-t-lg transition-colors ${activeTab === tab.id ? 'bg-black text-white' : 'bg-transparent text-gray-500 hover:bg-gray-100'}`}>{tab.label}</button>
           ))}
         </div>
 
-        {/* MENU GRID */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mb-10">
           {MENU[activeTab].map(item => (
             <MenuCard key={item.id} item={item} category={activeTab} />
           ))}
         </div>
-
       </div>
 
-      {/* RIGHT COLUMN: CART & CHECKOUT */}
       <div className="w-full lg:w-1/3">
         <div className="sticky top-[100px] bg-white p-6 rounded-xl shadow-xl border border-gray-100 flex flex-col h-fit">
-          
           <h2 className="font-black text-xl border-b border-gray-100 pb-4 mb-4">Your Meal Cart</h2>
           
           {Object.keys(cart).length === 0 ? (
-            <div className="text-center py-10 text-gray-400 font-medium text-sm">
-              Your cart is empty.<br/>Add some meals for the flight!
-            </div>
+            <div className="text-center py-10 text-gray-400 font-medium text-sm">Your cart is empty.<br/>Add some meals for the flight!</div>
           ) : (
             <div className="flex flex-col gap-4 mb-6 flex-1 overflow-y-auto max-h-[40vh]">
               {Object.values(cart).map(item => (
@@ -217,17 +200,12 @@ function MealsContent() {
               <span className="text-[#f5482b]">${total.toFixed(2)}</span>
             </div>
 
-            <button 
-              onClick={handleNext}
-              className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-colors shadow-lg active:scale-95"
-            >
+            <button onClick={handleNext} className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-colors shadow-lg active:scale-95">
               {Object.keys(cart).length > 0 ? "Confirm & Next ➔" : "Skip Meals ➔"}
             </button>
           </div>
-
         </div>
       </div>
-
     </div>
   );
 }

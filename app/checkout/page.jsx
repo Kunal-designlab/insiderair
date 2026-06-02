@@ -1,12 +1,14 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { auth } from "../../firebase";
+import { auth, db } from "../../firebase"; // Brought in db to pull deep profile data
 import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore"; // Firestore reads
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
+  const [userProfile, setUserProfile] = useState({ membershipId: "" });
   const [loading, setLoading] = useState(true);
 
   // 1. Get real-time passenger metrics directly from URL parameters
@@ -25,9 +27,22 @@ function CheckoutContent() {
   });
 
   useEffect(() => {
-    // Track active authenticated user session
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (currentUser) setUser(currentUser);
+    // Track active authenticated user session and fetch their Firestore profile data
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        setUser(currentUser);
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          if (userDocSnap.exists()) {
+            setUserProfile({
+              membershipId: userDocSnap.data().membershipId || ""
+            });
+          }
+        } catch (err) {
+          console.error("Error reading matching user profile attributes:", err);
+        }
+      }
     });
 
     try {
@@ -160,7 +175,7 @@ function CheckoutContent() {
       });
     }
 
-    // --- PUSH REAL LIVE TRANSACTION DATA TO GTM ---
+    // --- UPDATED: PUSH REAL LIVE TRANSACTION DATA WITH FLYER PROFILE STITCHING ---
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: "purchase",
@@ -168,6 +183,7 @@ function CheckoutContent() {
       value: orderGrandTotal,
       currency: "USD",
       email: user?.email || "anonymous-flyer@insiderair.com",
+      flyer_id: userProfile.membershipId || "Guest_Account", // Dynamic stitching parameter added here
       items: lineItems
     });
 
