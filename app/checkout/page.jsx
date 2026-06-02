@@ -1,17 +1,17 @@
 "use client";
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { auth, db } from "../../firebase"; // Brought in db to pull deep profile data
+import { auth, db } from "../../firebase"; 
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore"; // Firestore reads
+import { doc, getDoc } from "firebase/firestore";
 
 function CheckoutContent() {
   const searchParams = useSearchParams();
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState({ membershipId: "" });
   const [loading, setLoading] = useState(true);
+  const hasFiredCartEvent = useRef(false);
 
-  // 1. Get real-time passenger metrics directly from URL parameters
   const adults = parseInt(searchParams.get("adults")) || 1;
   const children = parseInt(searchParams.get("children")) || 0;
   const infants = parseInt(searchParams.get("infants")) || 0;
@@ -26,8 +26,8 @@ function CheckoutContent() {
     insurance: false
   });
 
+  // 1. Load active data records from state streams
   useEffect(() => {
-    // Track active authenticated user session and fetch their Firestore profile data
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
@@ -40,17 +40,15 @@ function CheckoutContent() {
             });
           }
         } catch (err) {
-          console.error("Error reading matching user profile attributes:", err);
+          console.error("Error reading data collection values:", err);
         }
       }
     });
 
     try {
-      // 2. Read live data written by your preceding funnel steps
       const outboundData = localStorage.getItem("selectedOutboundFlight");
       const returnData = localStorage.getItem("selectedReturnFlight");
       
-      // Handle adaptive reading for ancillaries (supports combined object or standalone keys)
       let mealsArr = [];
       let baggageArr = [];
       let seatsArr = [];
@@ -80,20 +78,18 @@ function CheckoutContent() {
       });
 
     } catch (error) {
-      console.error("Failed to read live engine state from session storage:", error);
+      console.error("Failed to recover active state vectors:", error);
     }
 
     setLoading(false);
     return () => unsubscribe();
   }, [searchParams]);
 
-  // Price formatting cleaner
   const formatPrice = (rawVal) => {
     if (!rawVal) return 0;
     return typeof rawVal === "number" ? rawVal : parseFloat(rawVal.replace(/[^0-9.]/g, ""));
   };
 
-  // Dynamic cost calculations based on real data
   const outboundTotalCost = itinerary.outboundFlight ? formatPrice(itinerary.outboundFlight.price) * totalSeatsRequired : 0;
   const returnTotalCost = itinerary.returnFlight ? formatPrice(itinerary.returnFlight.price) * totalSeatsRequired : 0;
   
@@ -104,102 +100,89 @@ function CheckoutContent() {
 
   const orderGrandTotal = outboundTotalCost + returnTotalCost + mealsTotalCost + baggageTotalCost + seatsTotalCost + insuranceTotalCost;
 
-  // 3. Complete Purchase Handshake & Push Real E-commerce Event to GTM
-  const triggerFinalPayment = () => {
-    if (!itinerary.outboundFlight) {
-      alert("Cannot complete purchase: No outbound flight validation data present.");
-      return;
+  // 2. AUTOMATIC GTM PUSH: final_cart Event
+  useEffect(() => {
+    if (!loading && itinerary.outboundFlight && !hasFiredCartEvent.current) {
+      const lineItems = [];
+
+      if (itinerary.outboundFlight) {
+        lineItems.push({
+          product_id: `${itinerary.outboundFlight.originCode}-${itinerary.outboundFlight.destCode}-OUT`,
+          name: `Outbound Flight: ${itinerary.outboundFlight.flightNo}`,
+          taxonomy: ["Flights", "Outbound"],
+          price: formatPrice(itinerary.outboundFlight.price),
+          quantity: totalSeatsRequired
+        });
+      }
+
+      if (itinerary.returnFlight) {
+        lineItems.push({
+          product_id: `${itinerary.returnFlight.originCode}-${itinerary.returnFlight.destCode}-RET`,
+          name: `Return Flight: ${itinerary.returnFlight.flightNo}`,
+          taxonomy: ["Flights", "Return"],
+          price: formatPrice(itinerary.returnFlight.price),
+          quantity: totalSeatsRequired
+        });
+      }
+
+      itinerary.seats.forEach((seat) => {
+        lineItems.push({
+          product_id: `SEAT-${seat.number || seat}`,
+          name: `Seat Assignment: ${seat.number || seat}`,
+          taxonomy: ["Ancillaries", "Seats"],
+          price: formatPrice(seat.price) || 10,
+          quantity: 1
+        });
+      });
+
+      itinerary.baggage.forEach((bag, idx) => {
+        lineItems.push({
+          product_id: `BAG-${idx}`,
+          name: bag.name || "Checked Baggage",
+          taxonomy: ["Ancillaries", "Baggage"],
+          price: formatPrice(bag.price),
+          quantity: 1
+        });
+      });
+
+      itinerary.meals.forEach((meal, idx) => {
+        lineItems.push({
+          product_id: `MEAL-${idx}`,
+          name: meal.name || "Inflight Meal Selection",
+          taxonomy: ["Ancillaries", "Meals"],
+          price: formatPrice(meal.price),
+          quantity: 1
+        });
+      });
+
+      if (itinerary.insurance) {
+        lineItems.push({
+          product_id: "INS-TRAVEL",
+          name: "Flight Protection Plan",
+          taxonomy: ["Ancillaries", "Insurance"],
+          price: 29,
+          quantity: 1
+        });
+      }
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "final_cart",
+        value: orderGrandTotal,
+        currency: "USD",
+        email: user?.email || "anonymous-flyer@insiderair.com",
+        flyer_id: userProfile.membershipId || "Guest_Account",
+        items: lineItems
+      });
+
+      console.log("Fired GTM: final_cart mapping deployed:", lineItems);
+      hasFiredCartEvent.current = true;
     }
+  }, [loading, itinerary, user, userProfile, orderGrandTotal, totalSeatsRequired]);
 
-    const generatedTxnId = `TXN-${Math.floor(100000 + Math.random() * 900000)}`;
-    const lineItems = [];
-
-    // Map true selections to standard e-commerce items array
-    if (itinerary.outboundFlight) {
-      lineItems.push({
-        product_id: `${itinerary.outboundFlight.originCode || "ORIG"}-${itinerary.outboundFlight.destCode || "DEST"}-OUT`,
-        name: `Outbound Flight: ${itinerary.outboundFlight.flightNo}`,
-        taxonomy: ["Flights", "Outbound"],
-        price: formatPrice(itinerary.outboundFlight.price),
-        quantity: totalSeatsRequired
-      });
-    }
-
-    if (itinerary.returnFlight) {
-      lineItems.push({
-        product_id: `${itinerary.returnFlight.originCode || "ORIG"}-${itinerary.returnFlight.destCode || "DEST"}-RET`,
-        name: `Return Flight: ${itinerary.returnFlight.flightNo}`,
-        taxonomy: ["Flights", "Return"],
-        price: formatPrice(itinerary.returnFlight.price),
-        quantity: totalSeatsRequired
-      });
-    }
-
-    itinerary.seats.forEach((seat) => {
-      lineItems.push({
-        product_id: `SEAT-${seat.number || seat}`,
-        name: `Seat Assignment: ${seat.number || seat}`,
-        taxonomy: ["Ancillaries", "Seats"],
-        price: formatPrice(seat.price) || 10,
-        quantity: 1
-      });
-    });
-
-    itinerary.baggage.forEach((bag, idx) => {
-      lineItems.push({
-        product_id: `BAG-${idx}`,
-        name: bag.name || "Checked Baggage",
-        taxonomy: ["Ancillaries", "Baggage"],
-        price: formatPrice(bag.price),
-        quantity: 1
-      });
-    });
-
-    itinerary.meals.forEach((meal, idx) => {
-      lineItems.push({
-        product_id: `MEAL-${idx}`,
-        name: meal.name || "Inflight MealSelection",
-        taxonomy: ["Ancillaries", "Meals"],
-        price: formatPrice(meal.price),
-        quantity: 1
-      });
-    });
-
-    if (itinerary.insurance) {
-      lineItems.push({
-        product_id: "INS-TRAVEL",
-        name: "Flight Protection Plan",
-        taxonomy: ["Ancillaries", "Insurance"],
-        price: 29,
-        quantity: 1
-      });
-    }
-
-    // --- UPDATED: PUSH REAL LIVE TRANSACTION DATA WITH FLYER PROFILE STITCHING ---
-    window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push({
-      event: "purchase",
-      transaction_id: generatedTxnId,
-      value: orderGrandTotal,
-      currency: "USD",
-      email: user?.email || "anonymous-flyer@insiderair.com",
-      flyer_id: userProfile.membershipId || "Guest_Account", // Dynamic stitching parameter added here
-      items: lineItems
-    });
-
-    console.log("E-commerce Purchase Fired Successfully:", generatedTxnId, lineItems);
-
-    // Clean session caches
-    localStorage.removeItem("selectedOutboundFlight");
-    localStorage.removeItem("selectedReturnFlight");
-    localStorage.removeItem("selectedAddons");
-    localStorage.removeItem("selectedMeals");
-    localStorage.removeItem("selectedBaggage");
-    localStorage.removeItem("selectedSeats");
-    localStorage.removeItem("selectedInsurance");
-
-    alert(`Booking Confirmed! Your Transaction ID is: ${generatedTxnId}`);
-    window.location.href = "/";
+  // 3. Forward User to Success Page
+  const handlePaymentSubmit = () => {
+    window.location.href = `/success?${searchParams.toString()}`;
   };
 
   if (loading) {
@@ -213,7 +196,6 @@ function CheckoutContent() {
         <p className="text-gray-500 font-bold text-xs uppercase tracking-wider mb-8">Live session confirmation desk</p>
 
         {!itinerary.outboundFlight ? (
-          /* Empty State Guard */
           <div className="bg-white rounded-xl shadow-md p-8 border-2 border-dashed border-gray-200 text-center">
             <div className="text-5xl mb-4">🎟️</div>
             <h2 className="text-xl font-black text-black mb-2">No Active Booking Session Found</h2>
@@ -221,7 +203,6 @@ function CheckoutContent() {
             <a href="/" className="inline-block bg-black text-white font-black px-6 py-3 rounded-lg text-sm uppercase transition-transform active:scale-95">Go To Search Engine</a>
           </div>
         ) : (
-          /* True Active Summary */
           <div className="bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden">
             <div className="bg-black text-white p-4 px-6 flex justify-between items-center text-xs font-black tracking-wide uppercase">
               <div>Passenger Configuration</div>
@@ -238,12 +219,8 @@ function CheckoutContent() {
                 <div className="text-xs font-black text-[#f5482b] uppercase tracking-wider mb-2">Outbound Flight Details</div>
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-black text-lg text-black">
-                      {itinerary.outboundFlight.originCode || "Origin"} ➔ {itinerary.outboundFlight.destCode || "Destination"}
-                    </h3>
-                    <p className="text-xs text-gray-400 font-bold uppercase mt-1">
-                      {itinerary.outboundFlight.airline || "Insider Air"} • {itinerary.outboundFlight.flightNo} • ({itinerary.outboundFlight.depTime} - {itinerary.outboundFlight.arrTime})
-                    </p>
+                    <h3 className="font-black text-lg text-black">{itinerary.outboundFlight.originCode} ➔ {itinerary.outboundFlight.destCode}</h3>
+                    <p className="text-xs text-gray-400 font-bold uppercase mt-1">{itinerary.outboundFlight.airline} • {itinerary.outboundFlight.flightNo} • ({itinerary.outboundFlight.depTime} - {itinerary.outboundFlight.arrTime})</p>
                   </div>
                   <div className="text-right font-black text-black text-base">
                     {itinerary.outboundFlight.price} <span className="text-xs font-bold text-gray-400 block mt-0.5">x{totalSeatsRequired} Passenger{totalSeatsRequired > 1 && "s"}</span>
@@ -257,12 +234,8 @@ function CheckoutContent() {
                   <div className="text-xs font-black text-[#f5482b] uppercase tracking-wider mb-2">Return Flight Details</div>
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-black text-lg text-black">
-                        {itinerary.returnFlight.originCode || "Origin"} ➔ {itinerary.returnFlight.destCode || "Destination"}
-                      </h3>
-                      <p className="text-xs text-gray-400 font-bold uppercase mt-1">
-                        {itinerary.returnFlight.airline || "Insider Air"} • {itinerary.returnFlight.flightNo} • ({itinerary.returnFlight.depTime} - {itinerary.returnFlight.arrTime})
-                      </p>
+                      <h3 className="font-black text-lg text-black">{itinerary.returnFlight.originCode} ➔ {itinerary.returnFlight.destCode}</h3>
+                      <p className="text-xs text-gray-400 font-bold uppercase mt-1">{itinerary.returnFlight.airline} • {itinerary.returnFlight.flightNo} • ({itinerary.returnFlight.depTime} - {itinerary.returnFlight.arrTime})</p>
                     </div>
                     <div className="text-right font-black text-black text-base">
                       {itinerary.returnFlight.price} <span className="text-xs font-bold text-gray-400 block mt-0.5">x{totalSeatsRequired} Passenger{totalSeatsRequired > 1 && "s"}</span>
@@ -314,11 +287,12 @@ function CheckoutContent() {
                 </div>
               </div>
 
+              {/* CHANGED: BUTTON ATTRIBUTES AS REQUESTED */}
               <button 
-                onClick={triggerFinalPayment}
+                onClick={handlePaymentSubmit}
                 className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-transform shadow-lg mt-4 active:scale-[0.99]"
               >
-                Confirm Booking & Complete Payment ➔
+                Pay with a Smile ➔
               </button>
             </div>
           </div>
