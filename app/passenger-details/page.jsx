@@ -1,194 +1,276 @@
 "use client";
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { auth, db } from "../../firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
-// REUSED COUNTRY DATABASE
-const COUNTRIES = [
-  "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia", "Comoros", "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czechia", "Denmark", "Djibouti", "Dominica", "Dominican Republic", "Ecuador", "Egypt", "El Salvador", "Equatorial Guinea", "Eritrea", "Estonia", "Eswatini", "Ethiopia", "Fiji", "Finland", "France", "Gabon", "Gambia", "Georgia", "Germany", "Ghana", "Greece", "Grenada", "Guatemala", "Guinea", "Guinea-Bissau", "Guyana", "Haiti", "Honduras", "Hungary", "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy", "Jamaica", "Japan", "Jordan", "Kazakhstan", "Kenya", "Kiribati", "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Lesotho", "Liberia", "Libya", "Liechtenstein", "Lithuania", "Luxembourg", "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Marshall Islands", "Mauritania", "Mauritius", "Mexico", "Micronesia", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nauru", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Korea", "North Macedonia", "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Korea", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe"
+const COUNTRY_CODES = [
+  { code: "+61", country: "Australia" },
+  { code: "+91", country: "India" },
+  { code: "+62", country: "Indonesia" },
+  { code: "+81", country: "Japan" },
+  { code: "+60", country: "Malaysia" },
+  { code: "+63", country: "Philippines" },
+  { code: "+65", country: "Singapore" },
+  { code: "+82", country: "South Korea" },
+  { code: "+66", country: "Thailand" },
+  { code: "+44", country: "UK" },
+  { code: "+1",  country: "US" },
+  { code: "+84", country: "Vietnam" },
 ];
 
-const TITLES = ["Mr", "Mrs", "Ms", "Miss", "Mstr", "Dr", "Other"];
-const GENDERS = ["Male", "Female", "Other"];
-
-function CheckoutContent() {
+function PassengerDetailsContent() {
   const searchParams = useSearchParams();
-  const [passengers, setPassengers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Passenger Count Metrics
+  const adults = parseInt(searchParams.get("adults")) || 1;
+  const childrenCount = parseInt(searchParams.get("children")) || 0;
+  const infants = parseInt(searchParams.get("infants")) || 0;
+  const totalFlyers = adults + childrenCount;
 
-  // Generate the blank forms based on the URL data AND push to DataLayer
+  // Form State: Dynamic Passenger Array
+  const [flyers, setFlyers] = useState([]);
+
+  // Form State: Booking Contact Section
+  const [contact, setContact] = useState({
+    title: "Mr",
+    firstName: "",
+    surname: "",
+    countryCode: "+1",
+    phone: "",
+    email: ""
+  });
+
   useEffect(() => {
-    const adults = parseInt(searchParams.get("adults")) || 1;
-    const childrenCount = parseInt(searchParams.get("children")) || 0;
-    const infants = parseInt(searchParams.get("infants")) || 0;
-    
-    // Calculate total flyers for the "quantity" field
-    const totalFlyers = adults + childrenCount + infants;
-
-    const initialPassengers = [];
-    
-    for(let i = 1; i <= adults; i++) {
-      initialPassengers.push({ id: `adult-${i}`, type: 'Adult', index: i, title: '', name: '', surname: '', birthdate: '', gender: '', nationality: '' });
+    // 1. Build blank input rows for every traveler in the manifest
+    const structuralArray = [];
+    for (let i = 1; i <= totalFlyers; i++) {
+      structuralArray.push({
+        id: i,
+        title: "Mr",
+        firstName: "",
+        lastName: ""
+      });
     }
-    for(let i = 1; i <= childrenCount; i++) {
-      initialPassengers.push({ id: `child-${i}`, type: 'Child', index: i, title: '', name: '', surname: '', birthdate: '', gender: '', nationality: '' });
-    }
-    for(let i = 1; i <= infants; i++) {
-      initialPassengers.push({ id: `infant-${i}`, type: 'Infant', index: i, title: '', name: '', surname: '', birthdate: '', gender: '', nationality: '' });
-    }
+    setFlyers(structuralArray);
 
-    setPassengers(initialPassengers);
+    // 2. Pre-fill Contact fields automatically if a Firebase user is logged in
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        try {
+          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocSnap = await getDoc(userDocRef);
+          
+          let parsedFirstName = "";
+          let parsedSurname = "";
+          
+          if (currentUser.displayName) {
+            const splitName = currentUser.displayName.split(" ");
+            parsedFirstName = splitName[0] || "";
+            parsedSurname = splitName.slice(1).join(" ") || "";
+          }
 
-    // --- CLEAN DATALAYER PUSH ---
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data();
+            setContact({
+              title: "Mr",
+              firstName: data.name?.split(" ")[0] || parsedFirstName,
+              surname: data.name?.split(" ").slice(1).join(" ") || parsedSurname,
+              countryCode: data.countryCode || "+1",
+              phone: data.phone || "",
+              email: data.email || currentUser.email || ""
+            });
+          } else {
+            setContact(prev => ({
+              ...prev,
+              firstName: parsedFirstName,
+              surname: parsedSurname,
+              email: currentUser.email || ""
+            }));
+          }
+        } catch (error) {
+          console.error("Error pulling profile data for pre-fill:", error);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [totalFlyers]);
+
+  // Handle passenger input adjustments dynamically
+  const handlePassengerChange = (index, field, value) => {
+    setFlyers(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f));
+  };
+
+  // Form Validation and Submission Engine
+  const handleSubmitDetails = (e) => {
+    e.preventDefault();
+
+    const cleanPhone = contact.phone.replace(/\s+/g, "");
+    const completePhoneNumber = `${contact.countryCode}${cleanPhone}`;
+
+    // --- DATALAYER: USER ATTRIBUTES IDENTIFICATION SYNC (NO UUID) ---
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
-      event: "passenger_details_view",
-      quantity: totalFlyers,
-      adults: adults,
-      children: childrenCount,
-      infants: infants
+      event: "user_contact_identified",
+      email: contact.email.trim().toLowerCase(),
+      phone_number: completePhoneNumber,
+      first_name: contact.firstName.trim(),
+      last_name: contact.surname.trim(),
+      title: contact.title,
+      gdpr_consent: "true"
     });
-    
-    console.log("Fired GTM Passenger Details View with quantity:", totalFlyers);
 
-  }, [searchParams]);
+    console.log("Fired GTM User Contact Data Layer Identification payload:", contact.email);
 
-  const handleChange = (id, field, value) => {
-    setPassengers(prev => 
-      prev.map(p => p.id === id ? { ...p, [field]: value } : p)
-    );
+    // Advance smoothly to the In-Flight Dining selection step while passing along parameter strings
+    window.location.href = `/add-ons/meals?${searchParams.toString()}`;
   };
 
-  const handleProceedToAddons = () => {
-    // Check if any field is blank in ANY passenger object
-    const isIncomplete = passengers.some(p => 
-      !p.title || !p.name || !p.surname || !p.birthdate || !p.gender || !p.nationality
-    );
-
-    if (isIncomplete) {
-      alert("Please fill out all passenger details before continuing.");
-      return;
-    }
-
-    console.log("Verified Passenger Data:", passengers);
-    window.location.href = `/add-ons/meals?${searchParams.toString()}`; 
-  };
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center font-black text-2xl text-gray-400">Loading Manifest Registry...</div>;
+  }
 
   return (
-    <div className="max-w-4xl mx-auto py-10 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl md:text-4xl font-black text-black">Passenger Details</h1>
-        <p className="text-gray-500 font-bold uppercase text-sm mt-2 tracking-wide">Enter names exactly as they appear on your government ID</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-10 px-4">
+      <form onSubmit={handleSubmitDetails} className="max-w-3xl mx-auto flex flex-col gap-8">
+        
+        <div>
+          <h1 className="text-3xl md:text-4xl font-black text-black">Passenger Details</h1>
+          <p className="text-gray-500 font-bold uppercase text-xs tracking-wider mt-1">Please enter names exactly as they appear on legal passports</p>
+        </div>
 
-      <div className="flex flex-col gap-6">
-        {passengers.map((passenger) => (
-          <div key={passenger.id} className="bg-white p-6 md:p-8 rounded-xl shadow-md border border-gray-100">
-            <h2 className="font-black text-xl text-[#f5482b] mb-6 flex items-center gap-2 border-b border-gray-100 pb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              {passenger.type} {passenger.index}
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        {/* SECTION A: INDIVIDUAL PASSENGER FORMS */}
+        <div className="flex flex-col gap-6">
+          {flyers.map((flyer, index) => (
+            <div key={flyer.id} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="font-black text-lg text-black border-b border-gray-100 pb-3 mb-4 uppercase tracking-wide flex items-center gap-2">
+                <span className="bg-black text-white text-xs px-2.5 py-1 rounded-md">P{flyer.id}</span>
+                Passenger {flyer.id} {index === 0 && <span className="text-xs font-bold text-gray-400 normal-case">(Primary Traveler)</span>}
+              </h2>
               
-              {/* TITLE */}
-              <div className="flex flex-col md:col-span-2">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">Title *</label>
-                <select 
-                  value={passenger.title} 
-                  onChange={(e) => handleChange(passenger.id, 'title', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium bg-white"
-                >
-                  <option value="">...</option>
-                  {TITLES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="flex flex-col md:col-span-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Title</label>
+                  <select 
+                    value={flyer.title} onChange={e => handlePassengerChange(index, "title", e.target.value)}
+                    className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-bold text-sm bg-white text-black"
+                  >
+                    <option value="Mr">Mr.</option>
+                    <option value="Ms">Ms.</option>
+                    <option value="Mrs">Mrs.</option>
+                    <option value="Dr">Dr.</option>
+                  </select>
+                </div>
+                <div className="flex flex-col md:col-span-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">First / Given Name</label>
+                  <input 
+                    type="text" required placeholder="John" value={flyer.firstName} onChange={e => handlePassengerChange(index, "firstName", e.target.value)}
+                    className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+                  />
+                </div>
+                <div className="flex flex-col md:col-span-1.5">
+                  <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Surname / Last Name</label>
+                  <input 
+                    type="text" required placeholder="Doe" value={flyer.lastName} onChange={e => handlePassengerChange(index, "lastName", e.target.value)}
+                    className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+                  />
+                </div>
               </div>
+            </div>
+          ))}
+        </div>
 
-              {/* FIRST NAME */}
-              <div className="flex flex-col md:col-span-5">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">First Name *</label>
-                <input 
-                  type="text" 
-                  placeholder="John"
-                  value={passenger.name} 
-                  onChange={(e) => handleChange(passenger.id, 'name', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium"
-                />
-              </div>
+        {/* SECTION B: BOOKING CONTACT DETAILS */}
+        <div className="bg-white p-6 rounded-xl shadow-md border border-gray-100">
+          <h2 className="font-black text-xl border-b border-gray-100 pb-3 mb-4 text-[#f5482b] uppercase tracking-wide">
+            Booking Contact Details
+          </h2>
+          
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            <div className="flex flex-col md:col-span-1">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Title</label>
+              <select 
+                value={contact.title} onChange={e => setContact({ ...contact, title: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-bold text-sm bg-white text-black"
+              >
+                <option value="Mr">Mr.</option>
+                <option value="Ms">Ms.</option>
+                <option value="Mrs">Mrs.</option>
+                <option value="Dr">Dr.</option>
+              </select>
+            </div>
+            
+            <div className="flex flex-col md:col-span-2.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">First Name</label>
+              <input 
+                type="text" required placeholder="Contact First Name" value={contact.firstName} onChange={e => setContact({ ...contact, firstName: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+              />
+            </div>
+            
+            <div className="flex flex-col md:col-span-2.5">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Surname</label>
+              <input 
+                type="text" required placeholder="Contact Last Name" value={contact.surname} onChange={e => setContact({ ...contact, surname: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+              />
+            </div>
 
-              {/* SURNAME */}
-              <div className="flex flex-col md:col-span-5">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">Surname *</label>
-                <input 
-                  type="text" 
-                  placeholder="Doe"
-                  value={passenger.surname} 
-                  onChange={(e) => handleChange(passenger.id, 'surname', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium"
-                />
-              </div>
+            <div className="flex flex-col md:col-span-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Country Code</label>
+              <select 
+                value={contact.countryCode} onChange={e => setContact({ ...contact, countryCode: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-bold text-sm bg-white text-black"
+              >
+                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.code} ({c.country})</option>)}
+              </select>
+            </div>
 
-              {/* BIRTHDATE */}
-              <div className="flex flex-col md:col-span-4">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">Date of Birth *</label>
-                <input 
-                  type="date" 
-                  value={passenger.birthdate} 
-                  onChange={(e) => handleChange(passenger.id, 'birthdate', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium"
-                />
-              </div>
+            <div className="flex flex-col md:col-span-4">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Mobile Number</label>
+              <input 
+                type="tel" required placeholder="5551234567" value={contact.phone} onChange={e => setContact({ ...contact, phone: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+              />
+            </div>
 
-              {/* GENDER */}
-              <div className="flex flex-col md:col-span-4">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">Gender *</label>
-                <select 
-                  value={passenger.gender} 
-                  onChange={(e) => handleChange(passenger.id, 'gender', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium bg-white"
-                >
-                  <option value="">Select...</option>
-                  {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </div>
-
-              {/* NATIONALITY */}
-              <div className="flex flex-col md:col-span-4">
-                <label className="text-xs font-bold text-gray-500 mb-2 uppercase">Nationality *</label>
-                <select 
-                  value={passenger.nationality} 
-                  onChange={(e) => handleChange(passenger.id, 'nationality', e.target.value)}
-                  className="border-2 border-gray-200 p-4 rounded-lg focus:outline-none focus:border-[#f5482b] text-black font-medium bg-white"
-                >
-                  <option value="">Select Country...</option>
-                  {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-
+            <div className="flex flex-col md:col-span-6">
+              <label className="text-[10px] font-black text-gray-400 uppercase mb-1.5">Email Address</label>
+              <input 
+                type="email" required placeholder="contact@email.com" value={contact.email} onChange={e => setContact({ ...contact, email: e.target.value })}
+                className="p-3 border-2 border-gray-100 rounded-lg focus:outline-none focus:border-[#f5482b] font-medium text-sm text-black bg-white"
+              />
             </div>
           </div>
-        ))}
-      </div>
 
-      <div className="mt-8 flex justify-end">
+          {/* Short Legal Disclaimer Component */}
+          <div className="mt-5 bg-gray-50 border border-gray-100 rounded-lg p-3 text-[11px] font-medium text-gray-400 flex items-start gap-2">
+            <span className="text-xs">🔔</span>
+            <p><strong>Notice:</strong> Booking updates, operational change variables, and flight notifications will be transmitted directly to these specified contact coordinates.</p>
+          </div>
+        </div>
+
+        {/* Submit Anchor Button */}
         <button 
-          onClick={handleProceedToAddons}
-          className="w-full md:w-auto bg-black hover:bg-gray-800 text-white font-black py-4 px-12 rounded-xl text-lg transition-colors shadow-lg active:scale-95"
+          type="submit"
+          className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-transform shadow-lg active:scale-[0.99] text-center"
         >
-          Proceed to Add-ons
+          Confirm Travelers & Continue ➔
         </button>
-      </div>
 
+      </form>
     </div>
   );
 }
 
-export default function Checkout() {
+export default function PassengerDetailsPage() {
   return (
-    <main className="min-h-screen bg-gray-50">
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black text-2xl text-gray-400">Loading Checkout...</div>}>
-        <CheckoutContent />
-      </Suspense>
-    </main>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center font-black text-2xl text-gray-400">Loading Configuration Streams...</div>}>
+      <PassengerDetailsContent />
+    </Suspense>
   );
 }
