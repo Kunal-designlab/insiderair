@@ -126,11 +126,11 @@ function PassengerDetailsContent() {
       // 💡 GTM waits for all tags to finish processing before executing this block:
       eventCallback: function() {
         console.log("GTM processing complete. Safe to redirect now.");
-        window.location.href = `/add-ons/meals?${searchParams.toString()}`;
+        //window.location.href = `/add-ons/meals?${searchParams.toString()}`;
       },
       
       // ⏱️ Safety Net: If GTM takes more than 2 seconds, force redirect anyway so the user isn't stuck
-      eventTimeout: 60000 
+      eventTimeout: 2000 
     });
 
     console.log("Fired GTM User Contact Data Layer Identification payload with callback protection:", contact.email);
