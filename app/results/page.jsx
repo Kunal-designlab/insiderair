@@ -280,6 +280,7 @@ function ResultsContent() {
   const [passengersConfirmed, setPassengersConfirmed] = useState(false);
   const [expandedOutbound, setExpandedOutbound] = useState(null);
   const [expandedReturn, setExpandedReturn] = useState(null);
+  const [showMobileFilters, setShowMobileFilters] = useState(false); // 💡 NEW: Controls collapsible filter state on mobile
 
   const [tripType, setTripType] = useState("return");
   const [fromAirport, setFromAirport] = useState(null);
@@ -446,7 +447,6 @@ function ResultsContent() {
     }
   };
 
-  // --- UPDATED: PUSHING REAL FLIGHT SELECTIONS TO LOCALSTORAGE ---
   const handleCheckout = () => {
     if (tripType === "return" && (!expandedOutbound || !expandedReturn)) {
       alert("Almost there! Please make sure you have selected BOTH an Outbound and a Return flight.");
@@ -486,7 +486,8 @@ function ResultsContent() {
 
   return (
     <>
-      <div className="bg-white border-b border-gray-200 shadow-sm sticky top-[72px] z-40">
+      {/* 💡 FIX: Modified from absolute sticky to md:sticky layout for better mobile space optimization */}
+      <div className="bg-white border-b border-gray-200 shadow-sm relative md:sticky md:top-[72px] z-40">
         <div className="max-w-6xl mx-auto p-4 md:p-5">
           <div className="flex gap-4 mb-4">
             <label className="flex items-center gap-2 cursor-pointer">
@@ -547,26 +548,45 @@ function ResultsContent() {
         </div>
       ) : (
         <div className="max-w-6xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-6 animate-fade-in">
-          <aside className="w-full md:w-1/4 bg-white p-5 rounded-xl shadow-md border border-gray-100 h-fit sticky top-[250px]">
-            <h3 className="font-black text-lg mb-4 text-black border-b border-gray-200 pb-2">Filters</h3>
-            <div className="mb-6">
-              <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Stops</h4>
-              {STOP_TYPES.map((stop) => (
-                <label key={stop} className="flex items-center gap-3 mb-3 cursor-pointer">
-                  <input type="checkbox" checked={stopsFilter.includes(stop)} onChange={() => toggleStopFilter(stop)} className="w-5 h-5 accent-[#f5482b]" />
-                  <span className="text-gray-800 font-medium text-sm">{stop}</span>
-                </label>
-              ))}
+          
+          {/* 💡 FIX: Converted filters column to collapsible container on mobile & relative placement to save height */}
+          <aside className="w-full md:w-1/4 bg-white p-5 rounded-xl shadow-md border border-gray-100 h-fit relative md:sticky md:top-[250px]">
+            
+            {/* Interactive Header for Mobile Views */}
+            <div 
+              className="flex items-center justify-between cursor-pointer md:cursor-default border-b border-gray-200 pb-2 mb-4"
+              onClick={() => setShowMobileFilters(!showMobileFilters)}
+            >
+              <h3 className="font-black text-lg text-black flex items-center gap-2">
+                <span>🎛️</span> Filters
+              </h3>
+              <span className="text-sm font-black text-[#f5482b] md:hidden bg-gray-50 border px-3 py-1 rounded-md">
+                {showMobileFilters ? "HIDE ▲" : "EXPAND ▼"}
+              </span>
             </div>
-            <div>
-              <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Departure Time</h4>
-              {TIME_SLOTS.map((time) => (
-                <label key={time} className="flex items-center gap-3 mb-3 cursor-pointer">
-                  <input type="checkbox" checked={timeFilter.includes(time)} onChange={() => toggleTimeFilter(time)} className="w-5 h-5 accent-[#f5482b]" />
-                  <span className="text-gray-800 font-medium text-sm">{time}</span>
-                </label>
-              ))}
+
+            {/* Conditionally reveal contents based on device responsive layouts layout mapping context */}
+            <div className={`${showMobileFilters ? "block" : "hidden"} md:block`}>
+              <div className="mb-6">
+                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Stops</h4>
+                {STOP_TYPES.map((stop) => (
+                  <label key={stop} className="flex items-center gap-3 mb-3 cursor-pointer">
+                    <input type="checkbox" checked={stopsFilter.includes(stop)} onChange={() => toggleStopFilter(stop)} className="w-5 h-5 accent-[#f5482b]" />
+                    <span className="text-gray-800 font-medium text-sm">{stop}</span>
+                  </label>
+                ))}
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Departure Time</h4>
+                {TIME_SLOTS.map((time) => (
+                  <label key={time} className="flex items-center gap-3 mb-3 cursor-pointer">
+                    <input type="checkbox" checked={timeFilter.includes(time)} onChange={() => toggleTimeFilter(time)} className="w-5 h-5 accent-[#f5482b]" />
+                    <span className="text-gray-800 font-medium text-sm">{time}</span>
+                  </label>
+                ))}
+              </div>
             </div>
+
           </aside>
 
           <section className="w-full md:w-3/4 flex flex-col gap-4">

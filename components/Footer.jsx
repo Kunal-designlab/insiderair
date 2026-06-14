@@ -1,4 +1,5 @@
-"use client";
+
+    "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
@@ -6,13 +7,18 @@ export default function Footer() {
   const [isMobileApp, setIsMobileApp] = useState(false);
 
   useEffect(() => {
-    // Check if running in a client browser and looks for our custom mobile application tag
-    if (typeof window !== "undefined" && navigator.userAgent.includes("InsiderAirMobileApp")) {
-      setIsMobileApp(true);
+    if (typeof window !== "undefined") {
+      // 💡 Check both the explicit injected window variable AND the user agent string
+      const hasWindowFlag = window.isInsiderAirMobileApp === true;
+      const hasUserAgentTag = navigator.userAgent.includes("InsiderAirMobileApp");
+
+      if (hasWindowFlag || hasUserAgentTag) {
+        setIsMobileApp(true);
+      }
     }
   }, []);
 
-  // 💡 THE FIX: If true, instantly delete the footer from the screen layout inside the mobile application
+  // If the app environment is detected, render nothing at all
   if (isMobileApp) return null;
 
   return (
