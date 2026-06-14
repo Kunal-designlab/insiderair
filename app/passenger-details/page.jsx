@@ -128,7 +128,7 @@ const handleSubmitDetails = (e) => {
         setTimeout(function() {
           console.log("Buffer complete. Navigating safely to meals page.");
           window.location.href = `/add-ons/meals?${searchParams.toString()}`;
-        }, 2000); 
+        }, 2500); 
       },
       
       // 3. Safety Net: If GTM or an external tag breaks, activate the callback anyway after 4 seconds
