@@ -105,14 +105,14 @@ function PassengerDetailsContent() {
     setFlyers(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f));
   };
 
-  // Form Validation and Submission Engine
+ // Form Validation and Submission Engine with Page Unload Protection
   const handleSubmitDetails = (e) => {
     e.preventDefault();
 
     const cleanPhone = contact.phone.replace(/\s+/g, "");
     const completePhoneNumber = `${contact.countryCode}${cleanPhone}`;
 
-    // --- DATALAYER: USER ATTRIBUTES IDENTIFICATION SYNC (NO UUID) ---
+    // --- DATALAYER: USER ATTRIBUTES IDENTIFICATION SYNC WITH CALLBACK ---
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: "user_contact_identified",
@@ -121,13 +121,19 @@ function PassengerDetailsContent() {
       first_name: contact.firstName.trim(),
       last_name: contact.surname.trim(),
       title: contact.title,
-      gdpr_consent: "true"
+      gdpr_consent: "true",
+      
+      // 💡 GTM waits for all tags to finish processing before executing this block:
+      eventCallback: function() {
+        console.log("GTM processing complete. Safe to redirect now.");
+        window.location.href = `/add-ons/meals?${searchParams.toString()}`;
+      },
+      
+      // ⏱️ Safety Net: If GTM takes more than 2 seconds, force redirect anyway so the user isn't stuck
+      eventTimeout: 2000 
     });
 
-    console.log("Fired GTM User Contact Data Layer Identification payload:", contact.email);
-
-    // Advance smoothly to the In-Flight Dining selection step while passing along parameter strings
-    window.location.href = `/add-ons/meals?${searchParams.toString()}`;
+    console.log("Fired GTM User Contact Data Layer Identification payload with callback protection:", contact.email);
   };
 
   if (loading) {
