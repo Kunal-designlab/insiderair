@@ -130,7 +130,7 @@ function PassengerDetailsContent() {
       },
       
       // ⏱️ Safety Net: If GTM takes more than 2 seconds, force redirect anyway so the user isn't stuck
-      eventTimeout: 2000 
+      eventTimeout: 60000 
     });
 
     console.log("Fired GTM User Contact Data Layer Identification payload with callback protection:", contact.email);
