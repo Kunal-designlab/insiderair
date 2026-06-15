@@ -5,12 +5,43 @@ import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
+// 💡 AIRPORT CATALOG DATABASE FOR ROUTE CITY IDENTIFICATION
+const AIRPORTS = [
+  { code: "DEL", city: "New Delhi", country: "India" },
+  { code: "BOM", city: "Mumbai", country: "India" },
+  { code: "BLR", city: "Bengaluru", country: "India" },
+  { code: "HND", city: "Tokyo", country: "Japan" },
+  { code: "KIX", city: "Osaka", country: "Japan" },
+  { code: "MNL", city: "Manila", country: "Philippines" },
+  { code: "CEB", city: "Cebu", country: "Philippines" },
+  { code: "KUL", city: "Kuala Lumpur", country: "Malaysia" },
+  { code: "PEN", city: "Penang", country: "Malaysia" },
+  { code: "SIN", city: "Singapore", country: "Singapore" },
+  { code: "HAN", city: "Hanoi", country: "Vietnam" },
+  { code: "SGN", city: "Ho Chi Minh City", country: "Vietnam" },
+  { code: "BKK", city: "Bangkok", country: "Thailand" },
+  { code: "CNX", city: "Chiang Mai", country: "Thailand" },
+  { code: "ICN", city: "Seoul", country: "South Korea" },
+  { code: "PUS", city: "Busan", country: "South Korea" },
+  { code: "TPE", city: "Taipei", country: "Taiwan" },
+  { code: "PEK", city: "Beijing", country: "China" },
+  { code: "CGK", city: "Jakarta", country: "Indonesia" },
+  { code: "DPS", city: "Denpasar (Bali)", country: "Indonesia" },
+  { code: "SYD", city: "Sydney", country: "Australia" },
+  { code: "MEL", city: "Melbourne", country: "Australia" },
+];
+
+const getCityName = (code) => {
+  const found = AIRPORTS.find((a) => a.code === code);
+  return found ? found.city : code;
+};
+
 // HELPER: Reconstructs exact Meal Taxonomies matching your Menu categories
 const getMealTaxonomy = (name) => {
-  if (["Paneer Tikka Masala", "Veg Hakka Noodles", "Spinach & Ricotta Pasta"].includes(name)) return ["Vegetarian Meals"];
-  if (["Chicken Biryani", "Grilled Lemon Chicken", "Spicy Mutton Curry"].includes(name)) return ["Non-Veg Meals"];
-  if (["Vegan Buddha Bowl", "Tofu Stir-fry", "Vegan Black Bean Burger"].includes(name)) return ["Vegan Meals"];
-  return ["Snacks & Beverages"];
+  if (["Paneer Tikka Masala", "Veg Hakka Noodles", "Spinach & Ricotta Pasta"].includes(name)) return ["Vegetarian Meals", "Meals"];
+  if (["Chicken Biryani", "Grilled Lemon Chicken", "Spicy Mutton Curry"].includes(name)) return ["Non-Veg Meals", "Meals"];
+  if (["Vegan Buddha Bowl", "Tofu Stir-fry", "Vegan Black Bean Burger"].includes(name)) return ["Vegan Meals", "Meals"];
+  return ["Snacks & Beverages", "Meals"];
 };
 
 // HELPER: Reconstructs exact Seat Names & Taxonomies matching your Map logic
@@ -115,10 +146,16 @@ function CheckoutContent() {
 
       if (itinerary.outboundFlight) {
         const route = `${itinerary.outboundFlight.originCode}-${itinerary.outboundFlight.destCode}`;
+        
+        // Resolve Outbound city names for reporting parameters
+        const originCity = getCityName(itinerary.outboundFlight.originCode);
+        const destCity = getCityName(itinerary.outboundFlight.destCode);
+        const cityRouteName = `${originCity}-${destCity}`;
+
         lineItems.push({
-          product_id: route,
-          name: route,
-          taxonomy: [route],
+          product_id: route,   // Remains standard Airport Code structure
+          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
+          taxonomy: [route],   // Remains standard Airport Code structure
           price: formatPrice(itinerary.outboundFlight.price),
           quantity: totalSeatsRequired
         });
@@ -126,10 +163,16 @@ function CheckoutContent() {
 
       if (itinerary.returnFlight) {
         const route = `${itinerary.returnFlight.originCode}-${itinerary.returnFlight.destCode}`;
+        
+        // Resolve Return city names for reporting parameters
+        const originCity = getCityName(itinerary.returnFlight.originCode);
+        const destCity = getCityName(itinerary.returnFlight.destCode);
+        const cityRouteName = `${originCity}-${destCity}`;
+
         lineItems.push({
-          product_id: route,
-          name: route,
-          taxonomy: [route],
+          product_id: route,   // Remains standard Airport Code structure
+          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
+          taxonomy: [route],   // Remains standard Airport Code structure
           price: formatPrice(itinerary.returnFlight.price),
           quantity: totalSeatsRequired
         });
