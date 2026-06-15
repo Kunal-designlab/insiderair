@@ -5,11 +5,42 @@ import { auth, db } from "../../firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
+// 💡 AIRPORT CATALOG DATABASE FOR ROUTE CITY IDENTIFICATION
+const AIRPORTS = [
+  { code: "DEL", city: "New Delhi", country: "India" },
+  { code: "BOM", city: "Mumbai", country: "India" },
+  { code: "BLR", city: "Bengaluru", country: "India" },
+  { code: "HND", city: "Tokyo", country: "Japan" },
+  { code: "KIX", city: "Osaka", country: "Japan" },
+  { code: "MNL", city: "Manila", country: "Philippines" },
+  { code: "CEB", city: "Cebu", country: "Philippines" },
+  { code: "KUL", city: "Kuala Lumpur", country: "Malaysia" },
+  { code: "PEN", city: "Penang", country: "Malaysia" },
+  { code: "SIN", city: "Singapore", country: "Singapore" },
+  { code: "HAN", city: "Hanoi", country: "Vietnam" },
+  { code: "SGN", city: "Ho Chi Minh City", country: "Vietnam" },
+  { code: "BKK", city: "Bangkok", country: "Thailand" },
+  { code: "CNX", city: "Chiang Mai", country: "Thailand" },
+  { code: "ICN", city: "Seoul", country: "South Korea" },
+  { code: "PUS", city: "Busan", country: "South Korea" },
+  { code: "TPE", city: "Taipei", country: "Taiwan" },
+  { code: "PEK", city: "Beijing", country: "China" },
+  { code: "CGK", city: "Jakarta", country: "Indonesia" },
+  { code: "DPS", city: "Denpasar (Bali)", country: "Indonesia" },
+  { code: "SYD", city: "Sydney", country: "Australia" },
+  { code: "MEL", city: "Melbourne", country: "Australia" },
+];
+
+const getCityName = (code) => {
+  const found = AIRPORTS.find((a) => a.code === code);
+  return found ? found.city : code;
+};
+
 const getMealTaxonomy = (name) => {
-  if (["Paneer Tikka Masala", "Veg Hakka Noodles", "Spinach & Ricotta Pasta"].includes(name)) return ["Vegetarian Meals"];
-  if (["Chicken Biryani", "Grilled Lemon Chicken", "Spicy Mutton Curry"].includes(name)) return ["Non-Veg Meals"];
-  if (["Vegan Buddha Bowl", "Tofu Stir-fry", "Vegan Black Bean Burger"].includes(name)) return ["Vegan Meals"];
-  return ["Snacks & Beverages"];
+  if (["Paneer Tikka Masala", "Veg Hakka Noodles", "Spinach & Ricotta Pasta"].includes(name)) return ["Vegetarian Meals", "Meals"];
+  if (["Chicken Biryani", "Grilled Lemon Chicken", "Spicy Mutton Curry"].includes(name)) return ["Non-Veg Meals", "Meals"];
+  if (["Vegan Buddha Bowl", "Tofu Stir-fry", "Vegan Black Bean Burger"].includes(name)) return ["Vegan Meals", "Meals"];
+  return ["Snacks & Beverages", "Meals"];
 };
 
 const getSeatTracking = (seatCode) => {
@@ -110,17 +141,23 @@ function SuccessContent() {
 
   const summaryGrandTotal = outboundPrice + returnPrice + mealsPrice + baggagePrice + seatsPrice + insurancePrice;
 
-  // Llifecycle Fire Logic
+  // Lifecycle Fire Logic
   useEffect(() => {
     if (authLoaded && confirmedItinerary.outboundFlight && !hasFiredPurchase.current && txnId) {
       const purchaseItems = [];
 
       if (confirmedItinerary.outboundFlight) {
         const route = `${confirmedItinerary.outboundFlight.originCode}-${confirmedItinerary.outboundFlight.destCode}`;
+        
+        // Resolve Outbound city names for reporting parameters
+        const originCity = getCityName(confirmedItinerary.outboundFlight.originCode);
+        const destCity = getCityName(confirmedItinerary.outboundFlight.destCode);
+        const cityRouteName = `${originCity}-${destCity}`;
+
         purchaseItems.push({
-          product_id: route,
-          name: route,
-          taxonomy: [route],
+          product_id: route,   // Remains standard Airport Code structure
+          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
+          taxonomy: [route],   // Remains standard Airport Code structure
           price: parseNumPrice(confirmedItinerary.outboundFlight.price),
           quantity: totalSeatsRequired
         });
@@ -128,10 +165,16 @@ function SuccessContent() {
 
       if (confirmedItinerary.returnFlight) {
         const route = `${confirmedItinerary.returnFlight.originCode}-${confirmedItinerary.returnFlight.destCode}`;
+        
+        // Resolve Return city names for reporting parameters
+        const originCity = getCityName(confirmedItinerary.returnFlight.originCode);
+        const destCity = getCityName(confirmedItinerary.returnFlight.destCode);
+        const cityRouteName = `${originCity}-${destCity}`;
+
         purchaseItems.push({
-          product_id: route,
-          name: route,
-          taxonomy: [route],
+          product_id: route,   // Remains standard Airport Code structure
+          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
+          taxonomy: [route],   // Remains standard Airport Code structure
           price: parseNumPrice(confirmedItinerary.returnFlight.price),
           quantity: totalSeatsRequired
         });
@@ -261,7 +304,7 @@ function SuccessContent() {
 
             {(mealsPrice > 0 || baggagePrice > 0 || seatsPrice > 0 || confirmedItinerary.insurance) && (
               <div className="border-b border-gray-100 pb-4">
-                <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Allocated Add-ons & Services</div>
+                <div className="text-xs font-black text-gray-400 uppercase tracking-wider mb-3">Selected Add-ons & Services</div>
                 <div className="flex flex-col gap-2.5">
                   {confirmedItinerary.seats.map((seat, i) => (
                     <div key={`s-${i}`} className="flex justify-between text-sm"><span className="text-gray-600 font-medium">Seat allocation ({seat.number})</span><span className="font-bold text-black">{seat.price}</span></div>
