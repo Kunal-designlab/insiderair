@@ -280,7 +280,7 @@ function ResultsContent() {
   const [passengersConfirmed, setPassengersConfirmed] = useState(false);
   const [expandedOutbound, setExpandedOutbound] = useState(null);
   const [expandedReturn, setExpandedReturn] = useState(null);
-  const [showMobileFilters, setShowMobileFilters] = useState(false); // 💡 NEW: Controls collapsible filter state on mobile
+  const [showMobileFilters, setShowMobileFilters] = useState(false); 
 
   const [tripType, setTripType] = useState("return");
   const [fromAirport, setFromAirport] = useState(null);
@@ -314,7 +314,9 @@ function ResultsContent() {
 
     if (foundFrom && foundTo) {
       const flightType = type === "return" ? "RT" : "OW";
-      const routeString = flightType === "RT" 
+      
+      // Kept as standard airport code format structure for catalog identification
+      const codeRouteString = flightType === "RT" 
         ? `${foundFrom.code}-${foundTo.code}-${foundTo.code}-${foundFrom.code}` 
         : `${foundFrom.code}-${foundTo.code}`;
 
@@ -332,16 +334,16 @@ function ResultsContent() {
         event: "category_page_view",
         destination_iata: foundTo.code,
         origin_iata: foundFrom.code,
-        product_id: routeString,
+        product_id: codeRouteString, 
         destination_city: foundTo.city,
-        taxonomy: [routeString],
+        taxonomy: [codeRouteString, "flight"],
         origin_city: foundFrom.city,
-        name: routeString,
+        name: codeRouteString,
         flight_type: flightType,
         departure_date: humanDate,
         departure_date_rfc: rfcDate
       });
-      console.log("Fired GTM Category View:", routeString);
+      console.log("Fired GTM Category View:", codeRouteString);
     }
   }, [searchParams]);
 
@@ -372,7 +374,13 @@ function ResultsContent() {
 
     const originObj = isReturnLeg ? toAirport : fromAirport;
     const destObj = isReturnLeg ? fromAirport : toAirport;
-    const legRouteString = `${originObj.code}-${destObj.code}`;
+    
+    // 1. The ID route uses Airport Codes (e.g., DEL-SIN)
+    const legCodeRouteString = `${originObj.code}-${destObj.code}`;
+    
+    // 2. The Name route uses hyphenated City Names (e.g., New Delhi-Singapore)
+    const legCityRouteString = `${originObj.city}-${destObj.city}`;
+    
     const parsedPrice = parseFloat(flight.price.replace('$', ''));
 
     if (!isCurrentlyExpanded) {
@@ -397,11 +405,11 @@ function ResultsContent() {
         event: "product_page_view",
         destination_iata: destObj.code,
         origin_iata: originObj.code,
-        product_id: legRouteString,
+        product_id: legCodeRouteString, // ✅ Kept as Airport Codes
         destination_city: destObj.city,
-        taxonomy: [legRouteString],
+        taxonomy: [legCodeRouteString, "flight"],  // ✅ Kept as Airport Codes
         origin_city: originObj.city,
-        name: legRouteString,
+        name: legCityRouteString,        // 💡 UPDATED: Now mapped to City-City name formats
         flight_type: flightType,
         departure_date: humanDate,
         departure_date_rfc: rfcDate
@@ -410,9 +418,9 @@ function ResultsContent() {
       window.dataLayer.push({
         event: "item_added_to_cart",
         action_type: "add_to_cart",
-        product_id: legRouteString,
-        name: legRouteString, 
-        taxonomy: [legRouteString],
+        product_id: legCodeRouteString, // ✅ Kept as Airport Codes
+        name: legCityRouteString,        // 💡 UPDATED: Now mapped to City-City name formats
+        taxonomy: [legCodeRouteString, "flight"],  // ✅ Kept as Airport Codes
         price: parsedPrice,
         sale_price: parsedPrice,
         quantity: 1, 
@@ -420,16 +428,16 @@ function ResultsContent() {
         url: window.location.href
       });
 
-      console.log("Fired GTM: Product View & Add to Cart", legRouteString);
+      console.log("Fired GTM: Product View & Add to Cart", legCodeRouteString);
     } 
     else {
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "item_removed_from_cart",
         action_type: "remove_from_cart",
-        product_id: legRouteString,
-        name: legRouteString, 
-        taxonomy: [legRouteString],
+        product_id: legCodeRouteString, // ✅ Kept as Airport Codes
+        name: legCityRouteString,        // 💡 UPDATED: Now mapped to City-City name formats
+        taxonomy: [legCodeRouteString, "flight"],  // ✅ Kept as Airport Codes
         price: parsedPrice,
         sale_price: parsedPrice,
         quantity: 1, 
@@ -437,7 +445,7 @@ function ResultsContent() {
         url: window.location.href
       });
       
-      console.log("Fired GTM: item_removed_from_cart", legRouteString);
+      console.log("Fired GTM: item_removed_from_cart", legCodeRouteString);
     }
 
     if (isReturnLeg) {
@@ -486,7 +494,6 @@ function ResultsContent() {
 
   return (
     <>
-      {/* 💡 FIX: Modified from absolute sticky to md:sticky layout for better mobile space optimization */}
       <div className="bg-white border-b border-gray-200 shadow-sm relative md:sticky md:top-[72px] z-40">
         <div className="max-w-6xl mx-auto p-4 md:p-5">
           <div className="flex gap-4 mb-4">
@@ -549,10 +556,7 @@ function ResultsContent() {
       ) : (
         <div className="max-w-6xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-6 animate-fade-in">
           
-          {/* 💡 FIX: Converted filters column to collapsible container on mobile & relative placement to save height */}
           <aside className="w-full md:w-1/4 bg-white p-5 rounded-xl shadow-md border border-gray-100 h-fit relative md:sticky md:top-[250px]">
-            
-            {/* Interactive Header for Mobile Views */}
             <div 
               className="flex items-center justify-between cursor-pointer md:cursor-default border-b border-gray-200 pb-2 mb-4"
               onClick={() => setShowMobileFilters(!showMobileFilters)}
@@ -565,7 +569,6 @@ function ResultsContent() {
               </span>
             </div>
 
-            {/* Conditionally reveal contents based on device responsive layouts layout mapping context */}
             <div className={`${showMobileFilters ? "block" : "hidden"} md:block`}>
               <div className="mb-6">
                 <h4 className="font-bold text-gray-700 mb-3 text-sm uppercase tracking-wide">Stops</h4>
@@ -586,7 +589,6 @@ function ResultsContent() {
                 ))}
               </div>
             </div>
-
           </aside>
 
           <section className="w-full md:w-3/4 flex flex-col gap-4">
