@@ -218,14 +218,13 @@ function CheckoutContent() {
           quantity: 1
         });
       }
-
+      const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "final_cart",
         value: orderGrandTotal,
         currency: "USD",
-        email: user?.email || "anonymous-flyer@insiderair.com",
-        flyer_id: userProfile.membershipId || "Guest_Account",
+        channel: currentChannel,
         items: lineItems
       });
 

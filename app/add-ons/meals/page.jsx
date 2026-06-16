@@ -64,7 +64,7 @@ function MealsContent() {
     const actionType = delta > 0 ? "add_to_cart" : "remove_from_cart";
     const salePrice = Number((item.price * 0.85).toFixed(2));
     const absQty = Math.abs(delta);
-
+    const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: eventName,
@@ -74,6 +74,7 @@ function MealsContent() {
       taxonomy: [TAXONOMY_MAP[category]],
       price: item.price,
       sale_price: salePrice,
+      channel: currentChannel,
       quantity: absQty,
       image_url: window.location.origin + item.img, 
       url: window.location.origin + "/"             

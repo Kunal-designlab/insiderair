@@ -37,10 +37,14 @@ function BaggageContent() {
     setBaggageSelections(prev => ({ ...prev, [passengerId]: newBag }));
     window.dataLayer = window.dataLayer || [];
 
+    // 💡 THE CHANNEL RESOLUTION BRIDGE: Automatically flags WebView vs Standard Browsers
+    const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
+
     if (oldBag && oldBag.price > 0) {
       window.dataLayer.push({
         event: "item_removed_from_cart",
         action_type: "remove_from_cart",
+        channel: currentChannel, // 🎯 Channel Flag Added
         product_id: oldBag.name,
         name: oldBag.name,
         taxonomy: ["Baggage Add-ons"],
@@ -56,6 +60,7 @@ function BaggageContent() {
       window.dataLayer.push({
         event: "item_added_to_cart",
         action_type: "add_to_cart",
+        channel: currentChannel, // 🎯 Channel Flag Added
         product_id: newBag.name,
         name: newBag.name,
         taxonomy: ["Baggage Add-ons"],
@@ -70,7 +75,6 @@ function BaggageContent() {
 
   const totalBaggageCost = Object.values(baggageSelections).reduce((sum, bag) => sum + bag.price, 0);
 
-  // --- UPDATED: WRITE CONFIGURATIONS TO STORAGE ON NAVIGATION ---
   const handleNext = () => {
     const premiumBaggageItems = Object.values(baggageSelections)
       .filter(bag => bag.price > 0)

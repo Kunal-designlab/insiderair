@@ -328,13 +328,14 @@ function ResultsContent() {
         humanDate = dateObj.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
         rfcDate = `${dep}T00:00:00Z`;
       }
-
+      const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: "category_page_view",
         destination_iata: foundTo.code,
         origin_iata: foundFrom.code,
         product_id: codeRouteString, 
+        channel: currentChannel,
         destination_city: foundTo.city,
         taxonomy: [codeRouteString, "flight"],
         origin_city: foundFrom.city,

@@ -148,16 +148,14 @@ function SuccessContent() {
 
       if (confirmedItinerary.outboundFlight) {
         const route = `${confirmedItinerary.outboundFlight.originCode}-${confirmedItinerary.outboundFlight.destCode}`;
-        
-        // Resolve Outbound city names for reporting parameters
         const originCity = getCityName(confirmedItinerary.outboundFlight.originCode);
         const destCity = getCityName(confirmedItinerary.outboundFlight.destCode);
         const cityRouteName = `${originCity}-${destCity}`;
 
         purchaseItems.push({
-          product_id: route,   // Remains standard Airport Code structure
-          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
-          taxonomy: [route],   // Remains standard Airport Code structure
+          product_id: route,   
+          name: cityRouteName, 
+          taxonomy: [route],   
           price: parseNumPrice(confirmedItinerary.outboundFlight.price),
           quantity: totalSeatsRequired
         });
@@ -165,16 +163,14 @@ function SuccessContent() {
 
       if (confirmedItinerary.returnFlight) {
         const route = `${confirmedItinerary.returnFlight.originCode}-${confirmedItinerary.returnFlight.destCode}`;
-        
-        // Resolve Return city names for reporting parameters
         const originCity = getCityName(confirmedItinerary.returnFlight.originCode);
         const destCity = getCityName(confirmedItinerary.returnFlight.destCode);
         const cityRouteName = `${originCity}-${destCity}`;
 
         purchaseItems.push({
-          product_id: route,   // Remains standard Airport Code structure
-          name: cityRouteName, // 💡 Updated: Outputs hyphenated city names
-          taxonomy: [route],   // Remains standard Airport Code structure
+          product_id: route,   
+          name: cityRouteName, 
+          taxonomy: [route],   
           price: parseNumPrice(confirmedItinerary.returnFlight.price),
           quantity: totalSeatsRequired
         });
@@ -221,19 +217,36 @@ function SuccessContent() {
         });
       }
 
-      // --- THE OFFICIAL PURCHASE EVENT ---
-      window.dataLayer = window.dataLayer || [];
-      window.dataLayer.push({
-        event: "purchase",
-        transaction_id: txnId,
-        value: summaryGrandTotal, 
-        currency: "USD",
-        email: user?.email || "anonymous-flyer@insiderair.com",
-        flyer_id: flyerId,
-        items: purchaseItems
-      });
+      // 💡 NEW CONDITIONAL INTERCEPT ROUTINE: Segments Web vs App Channel ingestion
+      const isMobileAppContainer = typeof window !== "undefined" && window.isInsiderAirMobileApp;
 
-      console.log("Fired GTM: purchase", txnId, summaryGrandTotal);
+      if (isMobileAppContainer) {
+        // A. If rendering inside WebView, serialize and push everything directly to native bridge
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: "PURCHASE_COMPLETED",
+            transactionId: txnId,
+            grandTotal: summaryGrandTotal,
+            currency: "USD",
+            items: purchaseItems
+          }));
+          console.log("Native App Web-Bridge: Successfully routed clean purchase payload to phone container shell.");
+        }
+      } else {
+        // B. Standard Fallback: Fire standard desktop GTM e-commerce event packets normally
+        window.dataLayer = window.dataLayer || [];
+        window.dataLayer.push({
+          event: "purchase",
+          transaction_id: txnId,
+          value: summaryGrandTotal, 
+          currency: "USD",
+          email: user?.email || "anonymous-flyer@insiderair.com",
+          flyer_id: flyerId,
+          items: purchaseItems
+        });
+        console.log("Fired GTM Web Engine: purchase", txnId, summaryGrandTotal);
+      }
+
       hasFiredPurchase.current = true;
 
       // Flush cache keys completely

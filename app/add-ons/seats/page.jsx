@@ -46,10 +46,12 @@ function SeatsContent() {
   const pushSeatToGTM = (eventName, actionType, seatCode, seatDetails) => {
     if (seatDetails.price > 0) {
       const seatName = `Seat ${seatCode} (${seatDetails.label})`;
+      const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
       window.dataLayer = window.dataLayer || [];
       window.dataLayer.push({
         event: eventName,
         action_type: actionType,
+        channel: currentChannel,
         product_id: seatName,
         name: seatName,
         taxonomy: ["paid seats"],
