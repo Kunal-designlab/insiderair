@@ -40,7 +40,7 @@ export default function Footer() {
             {/* Download Link Block */}
             <div className="mt-2">
               <a 
-                href="https://drive.google.com/uc?export=download&id=19VM7HlKy04Uh2w30MqiCM7QE8OpbOu1J" 
+                href="https://drive.google.com/uc?export=download&id=1btCfimupxQ9ehiGw8BvU1fdHn6qXSPto" 
                 download="InsiderAir.apk"
                 className="inline-flex items-center gap-2 bg-[#f5482b] hover:bg-[#d83c20] text-white font-black text-xs uppercase tracking-wider py-3.5 px-6 rounded-lg transition-transform active:scale-95 shadow-lg"
               >
