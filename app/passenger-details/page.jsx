@@ -24,16 +24,11 @@ function PassengerDetailsContent() {
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   
-  // Passenger Count Metrics
   const adults = parseInt(searchParams.get("adults")) || 1;
   const childrenCount = parseInt(searchParams.get("children")) || 0;
-  const infants = parseInt(searchParams.get("infants")) || 0;
   const totalFlyers = adults + childrenCount;
 
-  // Form State: Dynamic Passenger Array
   const [flyers, setFlyers] = useState([]);
-
-  // Form State: Booking Contact Section
   const [contact, setContact] = useState({
     title: "Mr",
     firstName: "",
@@ -44,7 +39,6 @@ function PassengerDetailsContent() {
   });
 
   useEffect(() => {
-    // 1. Build blank input rows for every traveler in the manifest
     const structuralArray = [];
     for (let i = 1; i <= totalFlyers; i++) {
       structuralArray.push({
@@ -56,7 +50,6 @@ function PassengerDetailsContent() {
     }
     setFlyers(structuralArray);
 
-    // 2. Pre-fill Contact fields automatically if a Firebase user is logged in
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
@@ -100,19 +93,34 @@ function PassengerDetailsContent() {
     return () => unsubscribe();
   }, [totalFlyers]);
 
-  // Handle passenger input adjustments dynamically
   const handlePassengerChange = (index, field, value) => {
     setFlyers(prev => prev.map((f, i) => i === index ? { ...f, [field]: value } : f));
   };
-const handleSubmitDetails = (e) => {
+
+  const handleSubmitDetails = (e) => {
     e.preventDefault();
 
     const cleanPhone = contact.phone.replace(/\s+/g, "");
     const completePhoneNumber = `${contact.countryCode}${cleanPhone}`;
+    const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
+
+    // 🚀 SYNC TO MOBILE NATIVE APP VIA DISPATCH PORTAL
+    if (typeof window !== "undefined" && window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: "USER_DATA_UPDATE",
+        email: contact.email.trim().toLowerCase(),
+        phone: completePhoneNumber,
+        firstName: contact.firstName.trim(),
+        surname: contact.surname.trim(),
+        title: contact.title
+      }));
+      console.log("Native App Web-Bridge: Sent passenger data attributes to native wrapper shell.");
+    }
 
     window.dataLayer = window.dataLayer || [];
     window.dataLayer.push({
       event: "user_contact_identified",
+      channel: currentChannel, 
       email: contact.email.trim().toLowerCase(),
       phone_number: completePhoneNumber,
       first_name: contact.firstName.trim(),
@@ -120,22 +128,16 @@ const handleSubmitDetails = (e) => {
       title: contact.title,
       gdpr_consent: "true",
       
-      // 1. GTM signals the millisecond the tracking scripts are loaded...
       eventCallback: function() {
-        console.log("GTM tags finished executing. Enforcing strict 2-second buffer for Insider network requests...");
-        
-        // 2. Wrap the redirect in a strict 2000ms sleep timer to shield background packets
+        console.log("GTM tags finished executing. Enforcing step navigation buffer...");
         setTimeout(function() {
-          console.log("Buffer complete. Navigating safely to meals page.");
           window.location.href = `/add-ons/meals?${searchParams.toString()}`;
         }, 2500); 
       },
-      
-      // 3. Safety Net: If GTM or an external tag breaks, activate the callback anyway after 4 seconds
       eventTimeout: 4000 
     });
 
-    console.log("Fired secure GTM payload with a guaranteed 2-second post-load network shield:", contact.email);
+    console.log("Fired secure GTM passenger updates payload:", contact.email);
   };
 
   if (loading) {
@@ -255,14 +257,12 @@ const handleSubmitDetails = (e) => {
             </div>
           </div>
 
-          {/* Short Legal Disclaimer Component */}
           <div className="mt-5 bg-gray-50 border border-gray-100 rounded-lg p-3 text-[11px] font-medium text-gray-400 flex items-start gap-2">
             <span className="text-xs">🔔</span>
             <p><strong>Notice:</strong> Booking updates, operational change variables, and flight notifications will be transmitted directly to these specified contact coordinates.</p>
           </div>
         </div>
 
-        {/* Submit Anchor Button */}
         <button 
           type="submit"
           className="w-full bg-[#f5482b] hover:bg-[#d83c20] text-white font-black py-4 rounded-xl text-lg transition-transform shadow-lg active:scale-[0.99] text-center"
