@@ -14,7 +14,7 @@ export default function Register() {
     name: "", email: "", nationality: "", birthdate: "", gender: "", password: "",
   });
   
-  // NEW: State for the Success UI
+  // State for the Success UI
   const [isSuccess, setIsSuccess] = useState(false);
   const [generatedId, setGeneratedId] = useState("");
 
@@ -58,6 +58,22 @@ export default function Register() {
         flyer_id: membershipId
       });
       console.log("Fired GTM: login (New Account)", user.email);
+
+      // 🚀 SYNC TO MOBILE APP
+      if (typeof window !== "undefined" && window.ReactNativeWebView) {
+        const messagePayload = {
+          type: "USER_AUTHENTICATED",
+          email: user.email
+        };
+
+        // Only add flyerId if it generated successfully
+        if (membershipId) {
+          messagePayload.flyerId = membershipId;
+        }
+
+        window.ReactNativeWebView.postMessage(JSON.stringify(messagePayload));
+        console.log("Native Web-Bridge: Dispatched registration credentials payload.", messagePayload);
+      }
 
       setIsSuccess(true); // Swap UI to the Success Screen
       

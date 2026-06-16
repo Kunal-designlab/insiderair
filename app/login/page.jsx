@@ -9,9 +9,27 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   
-  // NEW: State to manage the Success UI
+  // State to manage the Success UI
   const [isSuccess, setIsSuccess] = useState(false);
   const [userName, setUserName] = useState("");
+
+  // Helper to dispatch credentials cleanly to the native app frame wrapper
+  const syncWithNativeApp = (userEmail, flyerId) => {
+    if (typeof window !== "undefined" && window.ReactNativeWebView) {
+      const messagePayload = {
+        type: "USER_AUTHENTICATED",
+        email: userEmail
+      };
+      
+      // 💡 Only attach flyerId if it physically exists in Firestore profile database
+      if (flyerId) {
+        messagePayload.flyerId = flyerId;
+      }
+
+      window.ReactNativeWebView.postMessage(JSON.stringify(messagePayload));
+      console.log("Native Web-Bridge: Successfully synchronized login event packet.", messagePayload);
+    }
+  };
 
   const handleEmailLogin = async (e) => {
     e.preventDefault();
@@ -34,6 +52,9 @@ export default function Login() {
           flyer_id: data.membershipId
         });
         console.log("Fired GTM: login", user.email);
+
+        // 🚀 SYNC TO MOBILE APP
+        syncWithNativeApp(user.email, data.membershipId);
       }
       
       setIsSuccess(true); // Swap UI to the Success Screen
@@ -66,6 +87,9 @@ export default function Login() {
           flyer_id: data.membershipId
         });
         console.log("Fired GTM: login (Google)", user.email);
+
+        // 🚀 SYNC TO MOBILE APP
+        syncWithNativeApp(user.email, data.membershipId);
 
         setIsSuccess(true); // Swap UI to the Success Screen
       }
