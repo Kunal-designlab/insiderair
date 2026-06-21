@@ -84,7 +84,6 @@ function BaggageContent() {
       }));
 
     localStorage.setItem("selectedBaggage", JSON.stringify(premiumBaggageItems));
-    alert("Baggage confirmed! Moving to Seat Selection...");
     window.location.href = `/add-ons/seats?${searchParams.toString()}`;
   };
 

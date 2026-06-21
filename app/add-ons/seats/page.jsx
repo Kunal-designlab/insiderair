@@ -113,7 +113,6 @@ function SeatsContent() {
     }));
 
     localStorage.setItem("selectedSeats", JSON.stringify(serializedSeats));
-    alert("Seats confirmed! Proceeding to Checkout...");
     window.location.href = `/checkout?${searchParams.toString()}`;
   };
 

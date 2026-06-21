@@ -97,7 +97,6 @@ function MealsContent() {
     );
     
     localStorage.setItem("selectedMeals", JSON.stringify(serializedMeals));
-    alert("Meals saved to your booking!");
     window.location.href = `/add-ons/baggage?${searchParams.toString()}`;
   };
 
