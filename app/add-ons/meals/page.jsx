@@ -16,7 +16,7 @@ const MENU = {
   vegan: [
     { id: "vg1", name: "Vegan Buddha Bowl", desc: "Quinoa, avocado, and roasted chickpeas", price: 14, img: "/meals/buddha.png" },
     { id: "vg2", name: "Tofu Stir-fry", desc: "With broccoli and brown rice", price: 13, img: "/meals/tofu.png" },
-    { id: "vg3", name: "Vegan Black Bean Burger", desc: "Served with baked sweet potato fries", price: 12, img: "/meals/beanburger.png" },
+    { id: "vg3", name: "Vegan Black Bean Burger", desc: "Roasted potatoes, sautéed spinach, grilled tomatoes, and baked beans", price: 12, img: "/meals/beanburger.png" },
   ],
   extras: [
     { id: "ex1", name: "Veg Sandwich", price: 6, img: "/meals/vegsandwitch.png" },
