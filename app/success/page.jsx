@@ -217,35 +217,35 @@ function SuccessContent() {
         });
       }
 
-      // 💡 NEW CONDITIONAL INTERCEPT ROUTINE: Segments Web vs App Channel ingestion
-      const isMobileAppContainer = typeof window !== "undefined" && window.isInsiderAirMobileApp;
+      // 💡 UPDATED CHANNEL DETECTOR ROUTINE
+      const currentChannel = typeof window !== "undefined" && window.isInsiderAirMobileApp ? "app" : "web";
+      const isMobileAppContainer = currentChannel === "app";
 
-      if (isMobileAppContainer) {
-        // A. If rendering inside WebView, serialize and push everything directly to native bridge
-        if (window.ReactNativeWebView) {
-          window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: "PURCHASE_COMPLETED",
-            transactionId: txnId,
-            grandTotal: summaryGrandTotal,
-            currency: "USD",
-            items: purchaseItems
-          }));
-          console.log("Native App Web-Bridge: Successfully routed clean purchase payload to phone container shell.");
-        }
-      } else {
-        // B. Standard Fallback: Fire standard desktop GTM e-commerce event packets normally
-        window.dataLayer = window.dataLayer || [];
-        window.dataLayer.push({
-          event: "purchase",
-          transaction_id: txnId,
-          value: summaryGrandTotal, 
+      // A. Keep Native App Web-Bridge running intact for mobile wrappers
+      if (isMobileAppContainer && window.ReactNativeWebView) {
+        window.ReactNativeWebView.postMessage(JSON.stringify({
+          type: "PURCHASE_COMPLETED",
+          transactionId: txnId,
+          grandTotal: summaryGrandTotal,
           currency: "USD",
-          email: user?.email || "anonymous-flyer@insiderair.com",
-          flyer_id: flyerId,
           items: purchaseItems
-        });
-        console.log("Fired GTM Web Engine: purchase", txnId, summaryGrandTotal);
+        }));
+        console.log("Native App Web-Bridge: Successfully routed clean purchase payload to phone container shell.");
       }
+
+      // B. Unconditional Execution: Standard GTM E-commerce engine runs on BOTH platforms
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "purchase",
+        transaction_id: txnId,
+        value: summaryGrandTotal, 
+        currency: "USD",
+        email: user?.email || "anonymous-flyer@insiderair.com",
+        flyer_id: flyerId,
+        channel: currentChannel, // Dynamic tag channel assignment: 'web' or 'app'
+        items: purchaseItems
+      });
+      console.log(`Fired GTM Engine: purchase via channel [${currentChannel}]`, txnId, summaryGrandTotal);
 
       hasFiredPurchase.current = true;
 
